@@ -1,0 +1,9 @@
+name = "commendo-worker"
+main = "src/index.ts"
+compatibility_date = "2026-06-09"
+
+[observability]
+enabled = true
+
+[triggers]
+crons = ["0 0 * * *"]

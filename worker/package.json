@@ -1,0 +1,18 @@
+{
+  "name": "commendo-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck",
+    "lint": "npm run typecheck"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260606.0",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.19.1"
+  }
+}
