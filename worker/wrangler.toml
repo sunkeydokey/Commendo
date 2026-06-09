@@ -5,5 +5,11 @@ compatibility_date = "2026-06-09"
 [observability]
 enabled = true
 
+[[d1_databases]]
+binding = "DB"
+database_name = "commendo-d1-db"
+database_id = "f56c48a0-d792-4d4a-9594-f41a46cae551"
+migrations_dir = "migrations"
+
 [triggers]
 crons = ["0 0 * * *"]
