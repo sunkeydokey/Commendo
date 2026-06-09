@@ -75,6 +75,7 @@ After work:
 Git workflow:
 - Use a TBD-like personal workflow: short-lived branches, small commits, and fast integration.
 - Prefer branch names like `Fix/[topic]`, `Feature/[topic]`, or `Docs/[topic]`.
+- Do not use a `codex/` branch prefix in this repository.
 - Keep one branch focused on one purpose.
 - Use commit messages like `feat: ...`, `fix: ...`, `refactor: ...`, `chore: ...`, or `docs: ...`.
 - Split commits by meaningful, verifiable units.
