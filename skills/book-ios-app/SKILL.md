@@ -59,6 +59,14 @@ Every network screen needs:
 - Stale cache with last updated time.
 - Bookmark on/off.
 
+## SwiftUI Design System
+
+- Use `DesignToken` for colors, spacing, radius, shadow, and typography.
+- Do not call `Font.custom(...)` directly in feature views. Add or reuse a semantic `DesignToken.Typography` style, then apply it with `.commendoTextStyle(...)`.
+- Do not hardcode font names or one-off font sizes in screens. Add or reuse a semantic `TextStyle` token with its `fontFamily`, size, weight, line height, and letter spacing set in `DesignToken.Typography`.
+- Keep reusable visual primitives in `Commendo/Shared/Views/Components`; keep screen-only layout wrappers as `private` views inside that screen.
+- Before finishing UI work, search for direct `.font(.custom...)` calls outside the design-system modifier and replace them with token-backed modifiers.
+
 ## References
 
 Read `references/ios-implementation.md` for screens, SwiftData models, Firebase integration, and implementation priority.
