@@ -6,6 +6,7 @@ description: Use when integrating or planning Firebase for the iOS book curation
 # Book Firebase Ops
 
 Use this skill for Firebase-related implementation and operations.
+Also follow `skills/project-workflow/SKILL.md` when completing work.
 
 ## Included Firebase Products
 

@@ -6,6 +6,7 @@ description: Use when implementing the iOS client for the book curation app, inc
 # Book iOS App
 
 Use this skill for iOS app implementation decisions.
+Also follow `skills/project-workflow/SKILL.md` when completing work.
 
 ## App Structure
 

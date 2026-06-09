@@ -6,6 +6,7 @@ description: Use when designing or implementing the book recommendation algorith
 # Book Recommendation
 
 Use this skill for recommendation design and implementation.
+Also follow `skills/project-workflow/SKILL.md` when completing work.
 
 ## Strategy
 

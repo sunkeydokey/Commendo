@@ -6,6 +6,7 @@ description: Use when setting up or modifying monorepo CI/CD and automation for 
 # Book Monorepo CI/CD
 
 Use this skill for automation in the single repository containing iOS, Worker, and docs.
+Also follow `skills/project-workflow/SKILL.md` when completing work.
 
 ## CI/CD Strategy
 
