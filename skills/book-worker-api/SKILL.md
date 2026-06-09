@@ -6,6 +6,7 @@ description: Use when implementing or modifying the Cloudflare Worker API proxy 
 # Book Worker API
 
 Use this skill for the Cloudflare Worker backend layer.
+Also follow `skills/project-workflow/SKILL.md` when completing work.
 
 ## Responsibilities
 

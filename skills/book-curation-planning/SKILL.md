@@ -6,6 +6,7 @@ description: Use when planning, reviewing, or refining the iOS book curation app
 # Book Curation Planning
 
 Use this skill to keep product decisions consistent before implementation.
+Also follow `skills/project-workflow/SKILL.md` when completing work.
 
 ## Core Positioning
 
