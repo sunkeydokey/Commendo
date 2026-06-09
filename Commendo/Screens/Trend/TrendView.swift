@@ -12,7 +12,7 @@ import SwiftUI
 struct TrendView: View {
   let apiClient: CommendoAPIClient
 
-  @State private var selectedType: NewArrivalListType = .all
+  @State private var selectedType: NewArrivalListType = .special
 
   @QueryBinding(
     queryOptions: QueryOptions(retry: .count(1)),
@@ -229,16 +229,18 @@ private struct LoadingBookList: View {
         .commendoTextStyle(DesignToken.Typography.cardTitle)
         .padding(.horizontal, 20)
 
-      HStack(spacing: 16) {
-        ForEach(0..<3, id: \.self) { index in
-          BookCardItem(
-            model: BookCardItem.Model(id: "loading-\(index)", title: " ", metadata: " "),
-            coverTint: DesignToken.Color.charcoal04
-          )
-          .redacted(reason: .placeholder)
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 16) {
+          ForEach(0..<3, id: \.self) { index in
+            BookCardItem(
+              model: BookCardItem.Model(id: "loading-\(index)", title: " ", metadata: " "),
+              coverTint: DesignToken.Color.charcoal04
+            )
+            .redacted(reason: .placeholder)
+          }
         }
+        .padding(.horizontal, 20)
       }
-      .padding(.horizontal, 20)
     }
   }
 }

@@ -8,8 +8,8 @@
 import Foundation
 
 enum NewArrivalListType: String, CaseIterable, Decodable, Hashable, Sendable {
-  case all
   case special
+  case all
 
   var title: String {
     switch self {
