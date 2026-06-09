@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Check Worker project
         id: worker
@@ -38,7 +38,7 @@ jobs:
 
       - name: Set up Node
         if: steps.worker.outputs.exists == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm
