@@ -78,6 +78,10 @@ web_modules/
 
 # dotenv environment variable files
 .env
+.dev.vars
+.local/
+.deriveddata*/
+Config/Secrets.xcconfig
 .env.development.local
 .env.test.local
 .env.production.local
@@ -229,6 +233,10 @@ iOSInjectionProject/
 Packages
 xcuserdata
 *.xcodeproj
+!Commendo.xcodeproj/
+!Commendo.xcodeproj/project.pbxproj
+!Commendo.xcodeproj/project.xcworkspace/
+!Commendo.xcodeproj/project.xcworkspace/contents.xcworkspacedata
 
 
 ### SwiftPM ###
@@ -251,3 +259,5 @@ xcuserdata
 
 .local/
 .wrangler/
+design.pen
+design.md
