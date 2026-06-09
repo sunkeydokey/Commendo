@@ -25,6 +25,7 @@ Use this skill whenever completing implementation, documentation, CI, planning, 
 
 - Use short-lived TBD-like branches.
 - Prefer branch names like `Fix/[topic]`, `Feature/[topic]`, or `Docs/[topic]`.
+- Do not use a `codex/` branch prefix in this repository.
 - Keep one branch focused on one purpose.
 - If work spans multiple branches, report the recommended PR merge order after all work is complete.
 
