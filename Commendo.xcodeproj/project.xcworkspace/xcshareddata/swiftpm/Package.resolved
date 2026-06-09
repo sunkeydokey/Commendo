@@ -1,0 +1,24 @@
+{
+  "originHash" : "79fa7935a9621d9d67875343d59750229dbd14beba27eca17f1f3253eb3b721a",
+  "pins" : [
+    {
+      "identity" : "kingfisher",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/onevcat/Kingfisher.git",
+      "state" : {
+        "revision" : "cf8be20d07654570554c8a8a4952bc8a5766a8b0",
+        "version" : "8.9.0"
+      }
+    },
+    {
+      "identity" : "sunkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sunkeydokey/SunKit.git",
+      "state" : {
+        "revision" : "75e8c841ffbc58df7409ad992c9ef65eedd65752",
+        "version" : "0.2.1"
+      }
+    }
+  ],
+  "version" : 3
+}

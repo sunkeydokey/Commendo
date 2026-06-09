@@ -8,11 +8,13 @@
 import SwiftUI
 
 struct CommendoTabView: View {
+  let apiClient: CommendoAPIClient
+
   var body: some View {
     TabView {
       Tab("트렌드", systemImage: "flame") {
         CommendoTabContent {
-          TrendView()
+          TrendView(apiClient: apiClient)
         }
       }
     }

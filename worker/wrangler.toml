@@ -2,6 +2,9 @@ name = "commendo-worker"
 main = "src/index.ts"
 compatibility_date = "2026-06-09"
 
+[vars]
+ALADIN_API_BASE_URL = "https://www.aladin.co.kr/ttb/api"
+
 [observability]
 enabled = true
 

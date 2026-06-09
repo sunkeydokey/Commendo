@@ -5,22 +5,25 @@
 //  Created by Codex on 6/9/26.
 //
 
+import SunKit
+import SunKitSwiftUI
 import SwiftUI
 
 struct TrendView: View {
-  @State private var selectedChipID = "new"
+  let apiClient: CommendoAPIClient
 
-  private let chips = [
-    SelectableChipItem(id: "new", title: "신간"),
-    SelectableChipItem(id: "hot-new", title: "화제 신간"),
-    SelectableChipItem(id: "best-seller", title: "베스트 셀러"),
-  ]
+  @State private var selectedType: NewArrivalListType = .all
 
-  private let newReleaseBooks = [
-    BookCardItem.Model(id: "new-1", title: "흐릿한 끝에서 다시", metadata: "윤재연 지음"),
-    BookCardItem.Model(id: "new-2", title: "편지와 사색", metadata: "박지민 지음"),
-    BookCardItem.Model(id: "new-3", title: "여름의 문장들", metadata: "한서윤 지음"),
-  ]
+  @QueryBinding(
+    queryOptions: QueryOptions(retry: .count(1)),
+    cacheOptions: QueryCacheOptions(staleTime: 60 * 60 * 24 * 3, gcTime: 60 * 60 * 24 * 3)
+  ) private var newArrivals: QueryState<NewArrivalBookPage, NewArrivalBookPage>
+
+  private var chips: [SelectableChipItem] {
+    NewArrivalListType.allCases.map { type in
+      SelectableChipItem(id: type.rawValue, title: type.title)
+    }
+  }
 
   private let recentlyViewedBooks = [
     RecentBook(id: "recent-1", title: "고요한 밤의 독서"),
@@ -37,15 +40,21 @@ struct TrendView: View {
   var body: some View {
     ScrollView(.vertical, showsIndicators: false) {
       VStack(alignment: .leading, spacing: 24) {
-        SelectableChipBar(items: chips, selectedID: selectedChipID) { chip in
-          selectedChipID = chip.id
+        SelectableChipBar(items: chips, selectedID: selectedType.rawValue) { chip in
+          if let type = NewArrivalListType(rawValue: chip.id) {
+            selectedType = type
+          }
         }
         .padding(.top, 16)
 
-        HorizontalBookList(
-          title: "신간 도서",
-          trailingTitle: "더보기",
-          books: newReleaseBooks
+        NewArrivalSection(
+          title: selectedType.sectionTitle,
+          page: newArrivals.data,
+          isPending: newArrivals.isPending,
+          isFetching: newArrivals.isFetching,
+          isStale: newArrivals.result?.isStale == true,
+          error: newArrivals.error,
+          cachePolicy: selectedType == .special ? .hotNewArrivalCover : .newArrivalCover
         )
 
         RecentlyViewedSection(books: recentlyViewedBooks)
@@ -57,6 +66,12 @@ struct TrendView: View {
       }
     }
     .scrollContentBackground(.hidden)
+    .query(
+      $newArrivals,
+      key: ["books", "new-arrivals", AnyQueryKeyPart(selectedType.rawValue)]
+    ) { [apiClient, selectedType] in
+      try await apiClient.newArrivals(type: selectedType)
+    }
   }
 }
 
@@ -100,15 +115,18 @@ private struct HorizontalBookList: View {
   let title: String
   let trailingTitle: String?
   let books: [BookCardItem.Model]
+  let cachePolicy: BookImageCachePolicy
 
   init(
     title: String,
     trailingTitle: String? = nil,
-    books: [BookCardItem.Model]
+    books: [BookCardItem.Model],
+    cachePolicy: BookImageCachePolicy
   ) {
     self.title = title
     self.trailingTitle = trailingTitle
     self.books = books
+    self.cachePolicy = cachePolicy
   }
 
   var body: some View {
@@ -129,7 +147,7 @@ private struct HorizontalBookList: View {
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(alignment: .top, spacing: 16) {
           ForEach(Array(books.enumerated()), id: \.element.id) { index, book in
-            BookCardItem(model: book, coverTint: coverTint(at: index))
+            BookCardItem(model: book, coverTint: coverTint(at: index), cachePolicy: cachePolicy)
           }
         }
         .padding(.horizontal, 20)
@@ -147,6 +165,116 @@ private struct HorizontalBookList: View {
     default:
       DesignToken.Color.borderLight
     }
+  }
+}
+
+private struct NewArrivalSection: View {
+  let title: String
+  let page: NewArrivalBookPage?
+  let isPending: Bool
+  let isFetching: Bool
+  let isStale: Bool
+  let error: Error?
+  let cachePolicy: BookImageCachePolicy
+
+  private var books: [BookCardItem.Model] {
+    page?.items.map { book in
+      BookCardItem.Model(
+        id: book.id,
+        title: book.title,
+        metadata: book.author,
+        imageURL: book.coverURL
+      )
+    } ?? []
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      if isPending && books.isEmpty {
+        LoadingBookList(title: title)
+      } else if error != nil, books.isEmpty {
+        ErrorBookList(title: title)
+      } else if books.isEmpty {
+        EmptyBookList(title: title)
+      } else {
+        HorizontalBookList(
+          title: title,
+          trailingTitle: trailingTitle,
+          books: books,
+          cachePolicy: cachePolicy
+        )
+      }
+    }
+  }
+
+  private var trailingTitle: String? {
+    if isFetching {
+      return "갱신 중"
+    }
+
+    if isStale, let fetchedAt = page?.fetchedAt {
+      return "마지막 갱신 \(fetchedAt.formatted(date: .abbreviated, time: .omitted))"
+    }
+
+    return "더보기"
+  }
+}
+
+private struct LoadingBookList: View {
+  let title: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      Text(title)
+        .commendoTextStyle(DesignToken.Typography.cardTitle)
+        .padding(.horizontal, 20)
+
+      HStack(spacing: 16) {
+        ForEach(0..<3, id: \.self) { index in
+          BookCardItem(
+            model: BookCardItem.Model(id: "loading-\(index)", title: " ", metadata: " "),
+            coverTint: DesignToken.Color.charcoal04
+          )
+          .redacted(reason: .placeholder)
+        }
+      }
+      .padding(.horizontal, 20)
+    }
+  }
+}
+
+private struct EmptyBookList: View {
+  let title: String
+
+  var body: some View {
+    MessageBookList(title: title, message: "표시할 도서가 없습니다.")
+  }
+}
+
+private struct ErrorBookList: View {
+  let title: String
+
+  var body: some View {
+    MessageBookList(title: title, message: "도서를 불러오지 못했습니다.")
+  }
+}
+
+private struct MessageBookList: View {
+  let title: String
+  let message: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text(title)
+        .commendoTextStyle(DesignToken.Typography.cardTitle)
+
+      Text(message)
+        .commendoTextStyle(DesignToken.Typography.metadata, color: DesignToken.Color.textSecondary)
+        .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+        .background(DesignToken.Color.charcoal03)
+        .clipShape(RoundedRectangle(cornerRadius: DesignToken.Radius.standard))
+    }
+    .padding(.horizontal, 20)
   }
 }
 

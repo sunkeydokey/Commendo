@@ -6,12 +6,29 @@
 //
 
 import SwiftUI
+import SunKit
+import SunKitSwiftUI
 
 @main
 struct CommendoApp: App {
+  private let apiClient: CommendoAPIClient?
+  private let queryClient = QueryClient()
+
+  init() {
+    apiClient = try? CommendoAPIClient(configuration: AppConfiguration.load())
+  }
+
   var body: some Scene {
     WindowGroup {
-      CommendoTabView()
+      if let apiClient {
+        CommendoTabView(apiClient: apiClient)
+          .queryClient(queryClient)
+      } else {
+        Text("앱 설정을 확인해 주세요.")
+          .commendoTextStyle(DesignToken.Typography.body, color: DesignToken.Color.textPrimary)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .background(DesignToken.Color.backgroundCream)
+      }
     }
   }
 }
