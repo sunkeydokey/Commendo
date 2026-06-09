@@ -161,7 +161,14 @@ async function handleNewArrivals(request: Request, env: Env, ctx: ExecutionConte
     return cached;
   }
 
-  const snapshot = await getLatestNewArrivalSnapshot(env.DB, params.type);
+  const snapshot = await getOrCreateNewArrivalSnapshot(env, params.type).catch((error) => {
+    console.error(JSON.stringify({
+      event: "new_arrival_snapshot_lazy_create_failed",
+      type: params.type,
+      message: error instanceof Error ? error.message : "unknown_error"
+    }));
+    return null;
+  });
 
   if (!snapshot) {
     return json({ error: "new_arrivals_snapshot_unavailable" }, 503);
@@ -215,6 +222,21 @@ async function refreshNewArrivalSnapshots(env: Env): Promise<void> {
       }));
     }
   }
+}
+
+async function getOrCreateNewArrivalSnapshot(
+  env: Env,
+  type: NewArrivalType
+): Promise<NewArrivalSnapshotRow | null> {
+  const snapshot = await getLatestNewArrivalSnapshot(env.DB, type);
+
+  if (snapshot) {
+    return snapshot;
+  }
+
+  const books = await fetchAladinNewArrivals(env, type);
+  await saveNewArrivalSnapshot(env.DB, type, formatDate(new Date()), books);
+  return getLatestNewArrivalSnapshot(env.DB, type);
 }
 
 async function fetchAladinNewArrivals(env: Env, type: NewArrivalType): Promise<NewArrivalBook[]> {

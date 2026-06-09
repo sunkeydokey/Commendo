@@ -8,5 +8,28 @@
 import SwiftUI
 
 struct CommendoTabView: View {
-  var body: some View {}
+  let apiClient: CommendoAPIClient
+
+  var body: some View {
+    TabView {
+      Tab("트렌드", systemImage: "flame") {
+        CommendoTabContent {
+          TrendView(apiClient: apiClient)
+        }
+      }
+    }
+  }
+}
+
+private struct CommendoTabContent<Content: View>: View {
+  @ViewBuilder let content: () -> Content
+
+  var body: some View {
+    ZStack {
+      DesignToken.Color.backgroundCream
+        .ignoresSafeArea()
+
+      content()
+    }
+  }
 }

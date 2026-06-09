@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A37CD9382FD805630090696C /* SunKit in Frameworks */ = {isa = PBXBuildFile; productRef = A37CD9372FD805630090696C /* SunKit */; };
+		A37CD93A2FD805630090696C /* SunKitSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = A37CD9392FD805630090696C /* SunKitSwiftUI */; };
+		A37CD93D2FD805D20090696C /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = A37CD93C2FD805D20090696C /* Kingfisher */; };
 		A383DEBF2FD707BE00AA79E7 /* .gitignore in Resources */ = {isa = PBXBuildFile; fileRef = A383DEBE2FD707BE00AA79E7 /* .gitignore */; };
 /* End PBXBuildFile section */
 
@@ -72,6 +75,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A37CD93D2FD805D20090696C /* Kingfisher in Frameworks */,
+				A37CD93A2FD805630090696C /* SunKitSwiftUI in Frameworks */,
+				A37CD9382FD805630090696C /* SunKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -143,6 +149,9 @@
 			);
 			name = Commendo;
 			packageProductDependencies = (
+				A37CD9372FD805630090696C /* SunKit */,
+				A37CD9392FD805630090696C /* SunKitSwiftUI */,
+				A37CD93C2FD805D20090696C /* Kingfisher */,
 			);
 			productName = Commendo;
 			productReference = A383DE902FD7038700AA79E7 /* Commendo.app */;
@@ -226,6 +235,10 @@
 			);
 			mainGroup = A383DE872FD7038700AA79E7;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A37CD9362FD805630090696C /* XCRemoteSwiftPackageReference "SunKit" */,
+				A37CD93B2FD805D20090696C /* XCRemoteSwiftPackageReference "Kingfisher" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A383DE912FD7038700AA79E7 /* Products */;
 			projectDirPath = "";
@@ -426,14 +439,16 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = A383DEC12FD7270000AA79E7 /* Config/App.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Commendo;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = L289H6Z6JS;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Commendo/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "코멘도";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -460,14 +475,16 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = A383DEC12FD7270000AA79E7 /* Config/App.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Commendo;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = L289H6Z6JS;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Commendo/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "코멘도";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -614,6 +631,43 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A37CD9362FD805630090696C /* XCRemoteSwiftPackageReference "SunKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sunkeydokey/SunKit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.2.1;
+			};
+		};
+		A37CD93B2FD805D20090696C /* XCRemoteSwiftPackageReference "Kingfisher" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/onevcat/Kingfisher.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A37CD9372FD805630090696C /* SunKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A37CD9362FD805630090696C /* XCRemoteSwiftPackageReference "SunKit" */;
+			productName = SunKit;
+		};
+		A37CD9392FD805630090696C /* SunKitSwiftUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A37CD9362FD805630090696C /* XCRemoteSwiftPackageReference "SunKit" */;
+			productName = SunKitSwiftUI;
+		};
+		A37CD93C2FD805D20090696C /* Kingfisher */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A37CD93B2FD805D20090696C /* XCRemoteSwiftPackageReference "Kingfisher" */;
+			productName = Kingfisher;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A383DE882FD7038700AA79E7 /* Project object */;
 }
