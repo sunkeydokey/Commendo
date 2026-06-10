@@ -5,6 +5,7 @@
 //  Created by Codex on 6/9/26.
 //
 
+import Kingfisher
 import SunKit
 import SunKitSwiftUI
 import SwiftUI
@@ -19,6 +20,11 @@ struct TrendView: View {
     cacheOptions: QueryCacheOptions(staleTime: 60 * 60 * 24 * 3, gcTime: 60 * 60 * 24 * 3)
   ) private var newArrivals: QueryState<NewArrivalBookPage, NewArrivalBookPage>
 
+  @QueryBinding(
+    queryOptions: QueryOptions(retry: .count(1)),
+    cacheOptions: QueryCacheOptions(staleTime: 60 * 60 * 24, gcTime: 60 * 60 * 24)
+  ) private var popularLoans: QueryState<PopularLoanBookPage, PopularLoanBookPage>
+
   private var chips: [SelectableChipItem] {
     NewArrivalListType.allCases.map { type in
       SelectableChipItem(id: type.rawValue, title: type.title)
@@ -29,12 +35,6 @@ struct TrendView: View {
     RecentBook(id: "recent-1", title: "고요한 밤의 독서"),
     RecentBook(id: "recent-2", title: "문장의 지도"),
     RecentBook(id: "recent-3", title: "오늘의 산책"),
-  ]
-
-  private let risingBooks = [
-    RisingBook(id: "rising-1", rank: 1, title: "세계사의 쓸모", subtitle: "새로운 문명 읽기", isNew: true),
-    RisingBook(id: "rising-2", rank: 2, title: "요즘의 사유", subtitle: "작고 단단한 생각들", isNew: false),
-    RisingBook(id: "rising-3", rank: 3, title: "기억을 더듬어 걷기", subtitle: "산문의 시간", isNew: false),
   ]
 
   var body: some View {
@@ -60,7 +60,13 @@ struct TrendView: View {
         RecentlyViewedSection(books: recentlyViewedBooks)
           .padding(.horizontal, 20)
 
-        RisingLoanSection(books: risingBooks)
+        PopularLoanSection(
+          page: popularLoans.data,
+          isPending: popularLoans.isPending,
+          isFetching: popularLoans.isFetching,
+          isStale: popularLoans.result?.isStale == true,
+          error: popularLoans.error
+        )
           .padding(.horizontal, 20)
           .padding(.bottom, 32)
       }
@@ -72,20 +78,18 @@ struct TrendView: View {
     ) { [apiClient, selectedType] in
       try await apiClient.newArrivals(type: selectedType)
     }
+    .query(
+      $popularLoans,
+      key: ["books", "trending"]
+    ) { [apiClient] in
+      try await apiClient.popularLoans()
+    }
   }
 }
 
 private struct RecentBook: Identifiable {
   let id: String
   let title: String
-}
-
-private struct RisingBook: Identifiable {
-  let id: String
-  let rank: Int
-  let title: String
-  let subtitle: String
-  let isNew: Bool
 }
 
 private struct SelectableChipBar: View {
@@ -304,32 +308,65 @@ private struct RecentlyViewedSection: View {
   }
 }
 
-private struct RisingLoanSection: View {
-  let books: [RisingBook]
+private struct PopularLoanSection: View {
+  let page: PopularLoanBookPage?
+  let isPending: Bool
+  let isFetching: Bool
+  let isStale: Bool
+  let error: Error?
+
+  private var books: [PopularLoanBook] {
+    page?.items ?? []
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       HStack(alignment: .firstTextBaseline) {
-        Text("급상승 대출 도서")
+        Text("인기 대출 도서")
           .commendoTextStyle(DesignToken.Typography.cardTitle)
 
         Spacer()
 
-        Text("실시간")
+        Text(statusTitle)
           .commendoTextStyle(DesignToken.Typography.metadata, color: DesignToken.Color.textSecondary)
       }
 
-      VStack(spacing: 16) {
-        ForEach(books) { book in
-          RisingLoanRow(book: book)
+      if isPending && books.isEmpty {
+        ProgressView()
+          .frame(maxWidth: .infinity, minHeight: 120)
+      } else if error != nil, books.isEmpty {
+        Text("인기 대출 도서를 불러오지 못했습니다.")
+          .commendoTextStyle(DesignToken.Typography.metadata, color: DesignToken.Color.textSecondary)
+          .frame(maxWidth: .infinity, minHeight: 120)
+      } else if books.isEmpty {
+        Text("표시할 인기 대출 도서가 없습니다.")
+          .commendoTextStyle(DesignToken.Typography.metadata, color: DesignToken.Color.textSecondary)
+          .frame(maxWidth: .infinity, minHeight: 120)
+      } else {
+        VStack(spacing: 16) {
+          ForEach(books) { book in
+            PopularLoanRow(book: book)
+          }
         }
       }
     }
   }
+
+  private var statusTitle: String {
+    if isFetching {
+      return "갱신 중"
+    }
+
+    if isStale, let fetchedAt = page?.fetchedAt {
+      return "마지막 갱신 \(fetchedAt.formatted(date: .abbreviated, time: .omitted))"
+    }
+
+    return "최근 7일"
+  }
 }
 
-private struct RisingLoanRow: View {
-  let book: RisingBook
+private struct PopularLoanRow: View {
+  let book: PopularLoanBook
 
   var body: some View {
     HStack(spacing: 16) {
@@ -337,33 +374,51 @@ private struct RisingLoanRow: View {
         .commendoTextStyle(DesignToken.Typography.bodyLarge)
         .frame(width: 24, alignment: .leading)
 
-      RoundedRectangle(cornerRadius: DesignToken.Radius.standard)
-        .fill(DesignToken.Color.charcoal04)
-        .overlay {
-          RoundedRectangle(cornerRadius: DesignToken.Radius.standard)
-            .stroke(DesignToken.Color.borderLight, lineWidth: 1)
-        }
-        .frame(width: 48, height: 64)
+      coverImage
 
       VStack(alignment: .leading, spacing: 4) {
         Text(book.title)
           .commendoTextStyle(DesignToken.Typography.caption)
           .lineLimit(1)
 
-        Text(book.subtitle)
+        Text(book.authors)
           .commendoTextStyle(DesignToken.Typography.metadata, color: DesignToken.Color.textSecondary)
           .lineLimit(1)
       }
 
       Spacer()
 
-      if book.isNew {
-        Text("NEW")
-          .commendoTextStyle(DesignToken.Typography.badge, color: .red)
-      } else {
-        Image(systemName: "ellipsis")
-      }
+      Text("\(book.loanCount)회")
+        .commendoTextStyle(DesignToken.Typography.metadata, color: DesignToken.Color.textSecondary)
     }
     .frame(height: 80)
+  }
+
+  @ViewBuilder
+  private var coverImage: some View {
+    if let coverURL = book.coverURL {
+      KFImage(coverURL)
+        .memoryCacheExpiration(BookImageCachePolicy.popularLoanCover.memoryExpiration)
+        .diskCacheExpiration(BookImageCachePolicy.popularLoanCover.diskExpiration)
+        .memoryCacheAccessExtending(BookImageCachePolicy.popularLoanCover.accessExtending)
+        .diskCacheAccessExtending(BookImageCachePolicy.popularLoanCover.accessExtending)
+        .placeholder { coverPlaceholder }
+        .resizable()
+        .scaledToFill()
+        .frame(width: 48, height: 64)
+        .clipShape(RoundedRectangle(cornerRadius: DesignToken.Radius.standard))
+    } else {
+      coverPlaceholder
+    }
+  }
+
+  private var coverPlaceholder: some View {
+    RoundedRectangle(cornerRadius: DesignToken.Radius.standard)
+      .fill(DesignToken.Color.charcoal04)
+      .overlay {
+        RoundedRectangle(cornerRadius: DesignToken.Radius.standard)
+          .stroke(DesignToken.Color.borderLight, lineWidth: 1)
+      }
+      .frame(width: 48, height: 64)
   }
 }

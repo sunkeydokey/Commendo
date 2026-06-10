@@ -11,17 +11,18 @@ import Kingfisher
 enum BookImageCachePolicy {
   case newArrivalCover
   case hotNewArrivalCover
+  case popularLoanCover
 
   var memoryExpiration: StorageExpiration {
     switch self {
-    case .newArrivalCover, .hotNewArrivalCover:
+    case .newArrivalCover, .hotNewArrivalCover, .popularLoanCover:
       .days(3)
     }
   }
 
   var diskExpiration: StorageExpiration {
     switch self {
-    case .newArrivalCover, .hotNewArrivalCover:
+    case .newArrivalCover, .hotNewArrivalCover, .popularLoanCover:
       .days(3)
     }
   }
