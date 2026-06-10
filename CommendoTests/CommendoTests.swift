@@ -48,4 +48,41 @@ struct CommendoTests {
     #expect(page.items.first?.id == "9791234567890")
     #expect(page.items.first?.coverURL?.absoluteString == "https://example.com/cover.jpg")
   }
+
+  @MainActor
+  @Test func decodesPopularLoanBookPage() throws {
+    let json = """
+    {
+      "page": 1,
+      "pageSize": 20,
+      "totalResults": 1,
+      "periodStart": "2026-06-04",
+      "periodEnd": "2026-06-10",
+      "fetchedAt": "2026-06-10T00:00:00.000Z",
+      "items": [
+        {
+          "rank": 1,
+          "title": "테스트 인기 도서",
+          "authors": "작가",
+          "publisher": "출판사",
+          "publicationYear": "2026",
+          "isbn13": "9791234567890",
+          "coverURL": "https://example.com/popular.jpg",
+          "detailURL": "https://example.com/books/1",
+          "loanCount": 42
+        }
+      ]
+    }
+    """.data(using: .utf8)!
+
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+
+    let page = try decoder.decode(PopularLoanBookPage.self, from: json)
+
+    #expect(page.periodStart == "2026-06-04")
+    #expect(page.items.first?.rank == 1)
+    #expect(page.items.first?.loanCount == 42)
+    #expect(page.items.first?.coverURL?.absoluteString == "https://example.com/popular.jpg")
+  }
 }
