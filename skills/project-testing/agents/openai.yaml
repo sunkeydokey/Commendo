@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Testing"
+  short_description: "Run only tests justified by changed files"
+  default_prompt: "Select and run the minimum relevant verification for this repository without launching unnecessary UI tests or controlling Simulator through Computer Use."

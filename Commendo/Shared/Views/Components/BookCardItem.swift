@@ -5,7 +5,6 @@
 //  Created by Codex on 6/9/26.
 //
 
-import Kingfisher
 import SwiftUI
 
 struct BookCardItem: View {
@@ -39,7 +38,13 @@ struct BookCardItem: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      coverImage
+      BookCoverImage(
+        imageURL: model.imageURL,
+        width: 180,
+        height: 270,
+        placeholderColor: coverTint,
+        cachePolicy: cachePolicy
+      )
 
       Text(model.title)
         .commendoTextStyle(DesignToken.Typography.caption)
@@ -55,39 +60,6 @@ struct BookCardItem: View {
     .frame(width: 180, alignment: .leading)
   }
 
-  @ViewBuilder
-  private var coverImage: some View {
-    if let imageURL = model.imageURL {
-      KFImage(imageURL)
-        .memoryCacheExpiration(cachePolicy.memoryExpiration)
-        .diskCacheExpiration(cachePolicy.diskExpiration)
-        .memoryCacheAccessExtending(cachePolicy.accessExtending)
-        .diskCacheAccessExtending(cachePolicy.accessExtending)
-        .placeholder {
-          coverPlaceholder
-        }
-        .resizable()
-        .scaledToFill()
-        .frame(width: 180, height: 270)
-        .clipShape(RoundedRectangle(cornerRadius: DesignToken.Radius.comfortable))
-        .overlay {
-          RoundedRectangle(cornerRadius: DesignToken.Radius.comfortable)
-            .stroke(DesignToken.Color.borderLight, lineWidth: 1)
-        }
-    } else {
-      coverPlaceholder
-    }
-  }
-
-  private var coverPlaceholder: some View {
-    RoundedRectangle(cornerRadius: DesignToken.Radius.comfortable)
-      .fill(coverTint)
-      .overlay {
-        RoundedRectangle(cornerRadius: DesignToken.Radius.comfortable)
-          .stroke(DesignToken.Color.borderLight, lineWidth: 1)
-      }
-      .frame(width: 180, height: 270)
-  }
 }
 
 #Preview {
