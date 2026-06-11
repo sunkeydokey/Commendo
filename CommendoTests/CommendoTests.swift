@@ -162,4 +162,38 @@ struct CommendoTests {
     #expect(page.items.first?.loanCount == 42)
     #expect(page.items.first?.coverURL?.absoluteString == "https://example.com/popular.jpg")
   }
+
+  @MainActor
+  @Test func decodesBookDetailResponse() throws {
+    let json = """
+    {
+      "item": {
+        "title": "테스트 상세 도서",
+        "author": "작가",
+        "publisher": "출판사",
+        "publishedDate": "2026-06-11",
+        "isbn": "1234567890",
+        "isbn13": "9791234567890",
+        "coverURL": "https://example.com/detail.jpg",
+        "categoryId": 1,
+        "categoryName": "국내도서",
+        "description": "짧은 설명",
+        "fullDescription": "상세 설명",
+        "priceStandard": 18000,
+        "priceSales": 16200,
+        "link": "https://example.com/book",
+        "customerReviewRank": 8,
+        "itemPage": 320,
+        "tableOfContents": "목차",
+        "story": "책 이야기"
+      }
+    }
+    """.data(using: .utf8)!
+
+    let response = try JSONDecoder().decode(BookDetailResponse.self, from: json)
+
+    #expect(response.item.summary.id == "9791234567890")
+    #expect(response.item.summary.description == "상세 설명")
+    #expect(response.item.coverURL?.absoluteString == "https://example.com/detail.jpg")
+  }
 }

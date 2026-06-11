@@ -17,12 +17,12 @@ struct TrendView: View {
 
   @QueryBinding(
     queryOptions: QueryOptions(retry: .count(1)),
-    cacheOptions: QueryCacheOptions(staleTime: 60 * 60 * 24 * 3, gcTime: 60 * 60 * 24 * 3)
+    cacheOptions: QueryCacheOptions(staleTime: 60 * 60 * 3, gcTime: 60 * 60 * 3)
   ) private var newArrivals: QueryState<NewArrivalBookPage, NewArrivalBookPage>
 
   @QueryBinding(
     queryOptions: QueryOptions(retry: .count(1)),
-    cacheOptions: QueryCacheOptions(staleTime: 60 * 60 * 24, gcTime: 60 * 60 * 24)
+    cacheOptions: QueryCacheOptions(staleTime: 60 * 60 * 3, gcTime: 60 * 60 * 3)
   ) private var popularLoans: QueryState<PopularLoanBookPage, PopularLoanBookPage>
 
   private var chips: [SelectableChipItem] {
