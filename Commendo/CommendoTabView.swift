@@ -9,27 +9,16 @@ import SwiftUI
 
 struct CommendoTabView: View {
   let apiClient: CommendoAPIClient
+  @Bindable var coordinator: TabCoordinator
 
   var body: some View {
-    TabView {
-      Tab("트렌드", systemImage: "flame") {
-        CommendoTabContent {
-          TrendView(apiClient: apiClient)
-        }
+    TabView(selection: $coordinator.selectedTab) {
+      Tab("트렌드", systemImage: "flame", value: TabCoordinator.Tab.trend) {
+        TrendCoordinatorView(
+          apiClient: apiClient,
+          coordinator: coordinator.trendCoordinator
+        )
       }
-    }
-  }
-}
-
-private struct CommendoTabContent<Content: View>: View {
-  @ViewBuilder let content: () -> Content
-
-  var body: some View {
-    ZStack {
-      DesignToken.Color.backgroundCream
-        .ignoresSafeArea()
-
-      content()
     }
   }
 }

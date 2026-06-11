@@ -5,13 +5,13 @@
 //  Created by Codex on 6/9/26.
 //
 
-import Kingfisher
 import SunKit
 import SunKitSwiftUI
 import SwiftUI
 
 struct TrendView: View {
   let apiClient: CommendoAPIClient
+  let onSelectBook: (BookSummary) -> Void
 
   @State private var selectedType: NewArrivalListType = .special
 
@@ -54,7 +54,8 @@ struct TrendView: View {
           isFetching: newArrivals.isFetching,
           isStale: newArrivals.result?.isStale == true,
           error: newArrivals.error,
-          cachePolicy: selectedType == .special ? .hotNewArrivalCover : .newArrivalCover
+          cachePolicy: selectedType == .special ? .hotNewArrivalCover : .newArrivalCover,
+          onSelectBook: onSelectBook
         )
 
         RecentlyViewedSection(books: recentlyViewedBooks)
@@ -65,7 +66,8 @@ struct TrendView: View {
           isPending: popularLoans.isPending,
           isFetching: popularLoans.isFetching,
           isStale: popularLoans.result?.isStale == true,
-          error: popularLoans.error
+          error: popularLoans.error,
+          onSelectBook: onSelectBook
         )
           .padding(.horizontal, 20)
           .padding(.bottom, 32)
@@ -118,19 +120,22 @@ private struct SelectableChipBar: View {
 private struct HorizontalBookList: View {
   let title: String
   let trailingTitle: String?
-  let books: [BookCardItem.Model]
+  let books: [BookSummary]
   let cachePolicy: BookImageCachePolicy
+  let onSelectBook: (BookSummary) -> Void
 
   init(
     title: String,
     trailingTitle: String? = nil,
-    books: [BookCardItem.Model],
-    cachePolicy: BookImageCachePolicy
+    books: [BookSummary],
+    cachePolicy: BookImageCachePolicy,
+    onSelectBook: @escaping (BookSummary) -> Void
   ) {
     self.title = title
     self.trailingTitle = trailingTitle
     self.books = books
     self.cachePolicy = cachePolicy
+    self.onSelectBook = onSelectBook
   }
 
   var body: some View {
@@ -151,7 +156,21 @@ private struct HorizontalBookList: View {
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(alignment: .top, spacing: 16) {
           ForEach(Array(books.enumerated()), id: \.element.id) { index, book in
-            BookCardItem(model: book, coverTint: coverTint(at: index), cachePolicy: cachePolicy)
+            Button {
+              onSelectBook(book)
+            } label: {
+              BookCardItem(
+                model: BookCardItem.Model(
+                  id: book.id,
+                  title: book.title,
+                  metadata: book.author,
+                  imageURL: book.coverURL
+                ),
+                coverTint: coverTint(at: index),
+                cachePolicy: cachePolicy
+              )
+            }
+            .buttonStyle(.plain)
           }
         }
         .padding(.horizontal, 20)
@@ -180,16 +199,10 @@ private struct NewArrivalSection: View {
   let isStale: Bool
   let error: Error?
   let cachePolicy: BookImageCachePolicy
+  let onSelectBook: (BookSummary) -> Void
 
-  private var books: [BookCardItem.Model] {
-    page?.items.map { book in
-      BookCardItem.Model(
-        id: book.id,
-        title: book.title,
-        metadata: book.author,
-        imageURL: book.coverURL
-      )
-    } ?? []
+  private var books: [BookSummary] {
+    page?.items.map(\.summary) ?? []
   }
 
   var body: some View {
@@ -205,7 +218,8 @@ private struct NewArrivalSection: View {
           title: title,
           trailingTitle: trailingTitle,
           books: books,
-          cachePolicy: cachePolicy
+          cachePolicy: cachePolicy,
+          onSelectBook: onSelectBook
         )
       }
     }
@@ -314,6 +328,7 @@ private struct PopularLoanSection: View {
   let isFetching: Bool
   let isStale: Bool
   let error: Error?
+  let onSelectBook: (BookSummary) -> Void
 
   private var books: [PopularLoanBook] {
     page?.items ?? []
@@ -345,7 +360,7 @@ private struct PopularLoanSection: View {
       } else {
         VStack(spacing: 16) {
           ForEach(books) { book in
-            PopularLoanRow(book: book)
+            PopularLoanRow(book: book, onSelect: onSelectBook)
           }
         }
       }
@@ -367,58 +382,44 @@ private struct PopularLoanSection: View {
 
 private struct PopularLoanRow: View {
   let book: PopularLoanBook
+  let onSelect: (BookSummary) -> Void
 
   var body: some View {
-    HStack(spacing: 16) {
-      Text("\(book.rank)")
-        .commendoTextStyle(DesignToken.Typography.bodyLarge)
-        .frame(width: 24, alignment: .leading)
+    Button {
+      onSelect(book.summary)
+    } label: {
+      HStack(spacing: 16) {
+        Text("\(book.rank)")
+          .commendoTextStyle(DesignToken.Typography.bodyLarge)
+          .frame(width: 24, alignment: .leading)
 
-      coverImage
+        BookCoverImage(
+          imageURL: book.coverURL,
+          width: 48,
+          height: 64,
+          cornerRadius: DesignToken.Radius.standard,
+          cachePolicy: .popularLoanCover,
+          showsBorder: false
+        )
 
-      VStack(alignment: .leading, spacing: 4) {
-        Text(book.title)
-          .commendoTextStyle(DesignToken.Typography.caption)
-          .lineLimit(1)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(book.title)
+            .commendoTextStyle(DesignToken.Typography.caption)
+            .lineLimit(1)
 
-        Text(book.authors)
+          Text(book.authors)
+            .commendoTextStyle(DesignToken.Typography.metadata, color: DesignToken.Color.textSecondary)
+            .lineLimit(1)
+        }
+
+        Spacer()
+
+        Text("\(book.loanCount)회")
           .commendoTextStyle(DesignToken.Typography.metadata, color: DesignToken.Color.textSecondary)
-          .lineLimit(1)
       }
-
-      Spacer()
-
-      Text("\(book.loanCount)회")
-        .commendoTextStyle(DesignToken.Typography.metadata, color: DesignToken.Color.textSecondary)
+      .contentShape(Rectangle())
     }
+    .buttonStyle(.plain)
     .frame(height: 80)
-  }
-
-  @ViewBuilder
-  private var coverImage: some View {
-    if let coverURL = book.coverURL {
-      KFImage(coverURL)
-        .memoryCacheExpiration(BookImageCachePolicy.popularLoanCover.memoryExpiration)
-        .diskCacheExpiration(BookImageCachePolicy.popularLoanCover.diskExpiration)
-        .memoryCacheAccessExtending(BookImageCachePolicy.popularLoanCover.accessExtending)
-        .diskCacheAccessExtending(BookImageCachePolicy.popularLoanCover.accessExtending)
-        .placeholder { coverPlaceholder }
-        .resizable()
-        .scaledToFill()
-        .frame(width: 48, height: 64)
-        .clipShape(RoundedRectangle(cornerRadius: DesignToken.Radius.standard))
-    } else {
-      coverPlaceholder
-    }
-  }
-
-  private var coverPlaceholder: some View {
-    RoundedRectangle(cornerRadius: DesignToken.Radius.standard)
-      .fill(DesignToken.Color.charcoal04)
-      .overlay {
-        RoundedRectangle(cornerRadius: DesignToken.Radius.standard)
-          .stroke(DesignToken.Color.borderLight, lineWidth: 1)
-      }
-      .frame(width: 48, height: 64)
   }
 }

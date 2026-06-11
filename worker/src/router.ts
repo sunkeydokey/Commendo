@@ -1,5 +1,6 @@
 import type { Env } from "./env";
 import { json } from "./http";
+import { handleBookDetail } from "./routes/book-detail";
 import { handleNewArrivals } from "./routes/new-arrivals";
 import { handlePopularLoans } from "./routes/popular-loans";
 
@@ -36,6 +37,10 @@ export async function routeRequest(
 
   if (request.method === "GET" && url.pathname === "/books/trending") {
     return handlePopularLoans(request, env, ctx);
+  }
+
+  if (request.method === "GET" && url.pathname === "/books/detail") {
+    return handleBookDetail(request, env, ctx);
   }
 
   return json({

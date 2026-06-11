@@ -71,6 +71,20 @@ enum DesignToken {
       lineHeight: 1.10,
       letterSpacing: -0.9
     )
+    static let detailTitle = TextStyle(
+      fontFamily: FontName.spoqaMedium,
+      size: 28,
+      weight: headingWeight,
+      lineHeight: 1.25,
+      letterSpacing: -0.5
+    )
+    static let detailSectionTitle = TextStyle(
+      fontFamily: FontName.spoqaMedium,
+      size: 24,
+      weight: headingWeight,
+      lineHeight: 1.17,
+      letterSpacing: 0
+    )
     static let cardTitle = TextStyle(
       fontFamily: FontName.spoqaRegular,
       size: 20,
@@ -90,6 +104,13 @@ enum DesignToken {
       size: 16,
       weight: bodyWeight,
       lineHeight: 1.50,
+      letterSpacing: 0
+    )
+    static let detailBody = TextStyle(
+      fontFamily: FontName.spoqaRegular,
+      size: 16,
+      weight: bodyWeight,
+      lineHeight: 1.625,
       letterSpacing: 0
     )
     static let button = TextStyle(
@@ -141,6 +162,13 @@ enum DesignToken {
       lineHeight: 1.20,
       letterSpacing: 0
     )
+    static let keyword = TextStyle(
+      fontFamily: FontName.spoqaRegular,
+      size: 11,
+      weight: bodyWeight,
+      lineHeight: 1.45,
+      letterSpacing: 0
+    )
 
     static func font(for style: TextStyle) -> Font {
       Font.custom(fontName(for: style), size: style.size)
@@ -188,6 +216,7 @@ enum DesignToken {
   enum Shadow {
     static let focus = ShadowStyle(color: SwiftUI.Color.black.opacity(0.10), radius: 12, x: 0, y: 4)
     static let buttonDrop = ShadowStyle(color: SwiftUI.Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+    static let bookCover = ShadowStyle(color: SwiftUI.Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
   }
 }
 
