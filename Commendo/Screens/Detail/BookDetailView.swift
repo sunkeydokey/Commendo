@@ -42,13 +42,15 @@ struct BookDetailView: View {
     BookDetailContent(book: displayedBook)
   }
 
+  private var relatedBooks: [BookSummary] {
+    bookDetail.data?.item.relatedBooks.map(\.summary) ?? []
+  }
+
   var body: some View {
     Group {
       if bookDetail.isPending, bookDetail.data == nil {
         ProgressView("도서 정보를 불러오는 중입니다.")
           .frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else if bookDetail.error != nil, bookDetail.data == nil {
-        detailErrorView
       } else {
         ScrollView(.vertical, showsIndicators: false) {
           VStack(spacing: 0) {
@@ -105,6 +107,13 @@ struct BookDetailView: View {
           )
 
         Spacer()
+
+        if bookDetail.error != nil {
+          Button("다시 시도") {
+            bookDetail.refetch()
+          }
+          .buttonStyle(.bordered)
+        }
       }
       .padding(.horizontal, DesignToken.Spacing.xl - 4)
       .padding(.top, DesignToken.Spacing.lg)
@@ -125,20 +134,6 @@ struct BookDetailView: View {
     }
 
     return ""
-  }
-
-  private var detailErrorView: some View {
-    VStack(spacing: DesignToken.Spacing.lg) {
-      Text("도서 상세 정보를 불러오지 못했습니다.")
-        .commendoTextStyle(DesignToken.Typography.body, color: DesignToken.Color.textSecondary)
-
-      Button("다시 시도") {
-        bookDetail.refetch()
-      }
-      .buttonStyle(.bordered)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .padding(DesignToken.Spacing.xl)
   }
 
   private var heroSection: some View {
@@ -312,19 +307,29 @@ struct BookDetailView: View {
         .commendoTextStyle(DesignToken.Typography.detailSectionTitle)
         .padding(.horizontal, DesignToken.Spacing.xl - 4)
 
-      ScrollView(.horizontal, showsIndicators: false) {
-        HStack(alignment: .top, spacing: DesignToken.Spacing.lg) {
-          ForEach(content.relatedBooks) { relatedBook in
-            Button {
-              onSelectRelatedBook(relatedBook)
-            } label: {
-              RelatedBookItem(book: relatedBook)
+      if relatedBooks.isEmpty {
+        Text("추천 도서가 없습니다.")
+          .commendoTextStyle(
+            DesignToken.Typography.metadata,
+            color: DesignToken.Color.textSecondary
+          )
+          .frame(maxWidth: .infinity, minHeight: 80)
+          .padding(.horizontal, DesignToken.Spacing.xl - 4)
+      } else {
+        ScrollView(.horizontal, showsIndicators: false) {
+          HStack(alignment: .top, spacing: DesignToken.Spacing.lg) {
+            ForEach(relatedBooks) { relatedBook in
+              Button {
+                onSelectRelatedBook(relatedBook)
+              } label: {
+                RelatedBookItem(book: relatedBook)
+              }
+              .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
           }
+          .padding(.horizontal, DesignToken.Spacing.xl - 4)
+          .padding(.bottom, DesignToken.Spacing.xs / 2)
         }
-        .padding(.horizontal, DesignToken.Spacing.xl - 4)
-        .padding(.bottom, DesignToken.Spacing.xs / 2)
       }
     }
     .padding(.top, DesignToken.Spacing.sectionSmall - 8)
@@ -392,7 +397,6 @@ private struct BookDetailContent {
   let keywords = ["명상", "인문"]
   let estimatedReadingTime = "약 3시간 20분"
   let descriptionParagraphs: [String]
-  let relatedBooks: [BookSummary]
 
   init(book: BookSummary) {
     if book.description.isEmpty {
@@ -403,39 +407,7 @@ private struct BookDetailContent {
     } else {
       descriptionParagraphs = [book.description]
     }
-
-    relatedBooks = Self.sampleRelatedBooks
   }
-
-  private static let sampleRelatedBooks = [
-    BookSummary(
-      isbn: "9788972916941",
-      title: "월든",
-      author: "헨리 데이비드 소로",
-      publisher: "까치",
-      publishedDate: "2020",
-      description: "자연 속에서 단순한 삶을 실천하며 삶의 본질을 성찰한 기록입니다.",
-      coverURL: nil
-    ),
-    BookSummary(
-      isbn: "9788991290527",
-      title: "명상록",
-      author: "마르쿠스 아우렐리우스",
-      publisher: "숲",
-      publishedDate: "2012",
-      description: "삶과 인간의 본성에 대한 스토아 철학자의 내면적 성찰을 담았습니다.",
-      coverURL: nil
-    ),
-    BookSummary(
-      isbn: "9788970135733",
-      title: "고독의 위로",
-      author: "앤서니 스토",
-      publisher: "책읽는수요일",
-      publishedDate: "2011",
-      description: "고독이 창조성과 내면의 성장에 주는 의미를 살펴봅니다.",
-      coverURL: nil
-    ),
-  ]
 }
 
 #Preview {

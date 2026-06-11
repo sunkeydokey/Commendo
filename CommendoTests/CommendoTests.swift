@@ -185,7 +185,18 @@ struct CommendoTests {
         "customerReviewRank": 8,
         "itemPage": 320,
         "tableOfContents": "목차",
-        "story": "책 이야기"
+        "story": "책 이야기",
+        "relatedBooks": [
+          {
+            "title": "추천 도서",
+            "authors": "추천 작가",
+            "publisher": "추천 출판사",
+            "publicationYear": "2025",
+            "isbn13": "9788983921994",
+            "coverURL": "https://example.com/related.jpg",
+            "detailURL": "https://example.com/related"
+          }
+        ]
       }
     }
     """.data(using: .utf8)!
@@ -195,5 +206,7 @@ struct CommendoTests {
     #expect(response.item.summary.id == "9791234567890")
     #expect(response.item.summary.description == "상세 설명")
     #expect(response.item.coverURL?.absoluteString == "https://example.com/detail.jpg")
+    #expect(response.item.relatedBooks.first?.summary.id == "9788983921994")
+    #expect(response.item.relatedBooks.first?.summary.author == "추천 작가")
   }
 }

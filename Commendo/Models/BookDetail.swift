@@ -30,6 +30,7 @@ struct BookDetail: Decodable, Equatable, Sendable {
   let itemPage: Int
   let tableOfContents: String
   let story: String
+  let relatedBooks: [RelatedBook]
 
   var summary: BookSummary {
     BookSummary(
@@ -39,6 +40,28 @@ struct BookDetail: Decodable, Equatable, Sendable {
       publisher: publisher,
       publishedDate: publishedDate,
       description: fullDescription.isEmpty ? description : fullDescription,
+      coverURL: coverURL
+    )
+  }
+}
+
+struct RelatedBook: Decodable, Equatable, Sendable {
+  let title: String
+  let authors: String
+  let publisher: String
+  let publicationYear: String
+  let isbn13: String
+  let coverURL: URL?
+  let detailURL: URL?
+
+  var summary: BookSummary {
+    BookSummary(
+      isbn: isbn13,
+      title: title,
+      author: authors,
+      publisher: publisher,
+      publishedDate: publicationYear,
+      description: "",
       coverURL: coverURL
     )
   }
