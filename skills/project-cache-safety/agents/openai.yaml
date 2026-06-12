@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Cache Safety"
+  short_description: "Prevent stale cache keys and cached partial failures"
+  default_prompt: "Review and implement Worker and SunKit cache changes so response-contract updates invalidate every cache layer, partial provider failures are not cached, and route behavior is verified before deployment."

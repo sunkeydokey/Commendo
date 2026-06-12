@@ -56,6 +56,7 @@ struct TrendCoordinatorView: View {
     switch route {
     case .bookDetail(let book):
       BookDetailView(
+        apiClient: apiClient,
         book: book,
         onSelectRelatedBook: coordinator.showRelatedBook
       )

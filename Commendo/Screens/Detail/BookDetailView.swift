@@ -5,39 +5,65 @@
 //  Created by Codex on 6/10/26.
 //
 
+import SunKit
+import SunKitSwiftUI
 import SwiftUI
 
 struct BookDetailView: View {
+  let apiClient: CommendoAPIClient
   let book: BookSummary
   let onSelectRelatedBook: (BookSummary) -> Void
   let onFindAvailability: (() -> Void)?
 
   @State private var isBookmarked = false
 
+  @QueryBinding(
+    queryOptions: QueryOptions(retry: .count(1)),
+    cacheOptions: QueryCacheOptions(staleTime: 60 * 60 * 3, gcTime: 60 * 60 * 3)
+  ) private var bookDetail: QueryState<BookDetailResponse, BookDetailResponse>
+
   init(
+    apiClient: CommendoAPIClient,
     book: BookSummary,
     onSelectRelatedBook: @escaping (BookSummary) -> Void,
     onFindAvailability: (() -> Void)? = nil
   ) {
+    self.apiClient = apiClient
     self.book = book
     self.onSelectRelatedBook = onSelectRelatedBook
     self.onFindAvailability = onFindAvailability
   }
 
-  private var detail: BookDetailContent {
-    BookDetailContent(book: book)
+  private var displayedBook: BookSummary {
+    bookDetail.data?.item.summary ?? book
+  }
+
+  private var content: BookDetailContent {
+    BookDetailContent(book: displayedBook)
+  }
+
+  private var relatedBooks: [BookSummary] {
+    bookDetail.data?.item.relatedBooks.map(\.summary) ?? []
   }
 
   var body: some View {
-    ScrollView(.vertical, showsIndicators: false) {
-      VStack(spacing: 0) {
-        heroSection
-        compatibilitySection
-        introductionSection
-        insightSection
-        relatedBooksSection
+    Group {
+      if bookDetail.isPending, bookDetail.data == nil {
+        ProgressView("도서 정보를 불러오는 중입니다.")
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else {
+        ScrollView(.vertical, showsIndicators: false) {
+          VStack(spacing: 0) {
+            serverStatusView
+            heroSection
+            compatibilitySection
+            introductionSection
+            insightSection
+            relatedBooksSection
+          }
+          .padding(.bottom, DesignToken.Spacing.xl)
+        }
       }
-      .padding(.bottom, DesignToken.Spacing.xl)
     }
     .background(DesignToken.Color.backgroundCream)
     .navigationTitle("")
@@ -57,12 +83,63 @@ struct BookDetailView: View {
     .safeAreaInset(edge: .bottom, spacing: 0) {
       floatingActionArea
     }
+    .query(
+      $bookDetail,
+      key: ["books", "detail", "v3", AnyQueryKeyPart(book.isbn)]
+    ) { [apiClient, isbn = book.isbn] in
+      try await apiClient.bookDetail(isbn: isbn)
+    }
+  }
+
+  @ViewBuilder
+  private var serverStatusView: some View {
+    if bookDetail.isFetching || bookDetail.result?.isStale == true || bookDetail.error != nil {
+      HStack(spacing: DesignToken.Spacing.xs) {
+        if bookDetail.isFetching {
+          ProgressView()
+            .controlSize(.small)
+        }
+
+        Text(serverStatusTitle)
+          .commendoTextStyle(
+            DesignToken.Typography.metadata,
+            color: DesignToken.Color.textSecondary
+          )
+
+        Spacer()
+
+        if bookDetail.error != nil {
+          Button("다시 시도") {
+            bookDetail.refetch()
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+      .padding(.horizontal, DesignToken.Spacing.xl - 4)
+      .padding(.top, DesignToken.Spacing.lg)
+    }
+  }
+
+  private var serverStatusTitle: String {
+    if bookDetail.isFetching {
+      return "상세 정보를 갱신 중입니다."
+    }
+
+    if bookDetail.error != nil {
+      return "갱신에 실패해 저장된 정보를 표시합니다."
+    }
+
+    if bookDetail.result?.isStale == true, let updatedAt = bookDetail.result?.updatedAt {
+      return "마지막 갱신 \(updatedAt.formatted(date: .abbreviated, time: .shortened))"
+    }
+
+    return ""
   }
 
   private var heroSection: some View {
     VStack(spacing: 0) {
       BookCoverImage(
-        imageURL: book.coverURL,
+        imageURL: displayedBook.coverURL,
         width: 233.33,
         height: 350,
         cachePolicy: .newArrivalCover,
@@ -71,11 +148,11 @@ struct BookDetailView: View {
       .padding(.bottom, DesignToken.Spacing.xl)
 
       VStack(spacing: DesignToken.Spacing.xs / 2) {
-        Text(book.title)
+        Text(displayedBook.title)
           .commendoTextStyle(DesignToken.Typography.detailTitle)
           .multilineTextAlignment(.center)
 
-        Text(book.author)
+        Text(displayedBook.author)
           .commendoTextStyle(
             DesignToken.Typography.bodyLarge,
             color: DesignToken.Color.textSecondary
@@ -83,11 +160,11 @@ struct BookDetailView: View {
           .multilineTextAlignment(.center)
 
         HStack(spacing: DesignToken.Spacing.xs) {
-          Text(book.publisher)
+          Text(displayedBook.publisher)
           Circle()
             .fill(DesignToken.Color.borderLight)
             .frame(width: 4, height: 4)
-          Text(book.publishedDate)
+          Text(displayedBook.publishedDate)
         }
         .commendoTextStyle(
           DesignToken.Typography.metadata,
@@ -118,12 +195,12 @@ struct BookDetailView: View {
             .fill(DesignToken.Color.borderLight)
           Capsule()
             .fill(DesignToken.Color.charcoal)
-            .frame(width: proxy.size.width * detail.compatibility)
+            .frame(width: proxy.size.width * content.compatibility)
         }
       }
       .frame(height: DesignToken.Spacing.xs)
 
-      Text(detail.compatibilityDescription)
+      Text(content.compatibilityDescription)
         .commendoTextStyle(
           DesignToken.Typography.metadata,
           color: DesignToken.Color.textSecondary
@@ -146,7 +223,7 @@ struct BookDetailView: View {
         .commendoTextStyle(DesignToken.Typography.detailSectionTitle)
 
       VStack(alignment: .leading, spacing: DesignToken.Spacing.lg) {
-        ForEach(Array(detail.descriptionParagraphs.enumerated()), id: \.offset) { _, paragraph in
+        ForEach(Array(content.descriptionParagraphs.enumerated()), id: \.offset) { _, paragraph in
           Text(paragraph)
             .commendoTextStyle(
               DesignToken.Typography.detailBody,
@@ -168,7 +245,7 @@ struct BookDetailView: View {
       HStack(spacing: DesignToken.Spacing.lg) {
         insightCard(title: "주요 키워드") {
           HStack(spacing: DesignToken.Spacing.xs / 2) {
-            ForEach(detail.keywords, id: \.self) { keyword in
+            ForEach(content.keywords, id: \.self) { keyword in
               Text(keyword)
                 .commendoTextStyle(DesignToken.Typography.keyword)
                 .padding(.horizontal, DesignToken.Spacing.xs)
@@ -184,7 +261,7 @@ struct BookDetailView: View {
         }
 
         insightCard(title: "완독 예상 시간") {
-          Text(detail.estimatedReadingTime)
+          Text(content.estimatedReadingTime)
             .commendoTextStyle(DesignToken.Typography.body)
             .lineLimit(1)
         }
@@ -230,19 +307,29 @@ struct BookDetailView: View {
         .commendoTextStyle(DesignToken.Typography.detailSectionTitle)
         .padding(.horizontal, DesignToken.Spacing.xl - 4)
 
-      ScrollView(.horizontal, showsIndicators: false) {
-        HStack(alignment: .top, spacing: DesignToken.Spacing.lg) {
-          ForEach(detail.relatedBooks) { relatedBook in
-            Button {
-              onSelectRelatedBook(relatedBook)
-            } label: {
-              RelatedBookItem(book: relatedBook)
+      if relatedBooks.isEmpty {
+        Text("추천 도서가 없습니다.")
+          .commendoTextStyle(
+            DesignToken.Typography.metadata,
+            color: DesignToken.Color.textSecondary
+          )
+          .frame(maxWidth: .infinity, minHeight: 80)
+          .padding(.horizontal, DesignToken.Spacing.xl - 4)
+      } else {
+        ScrollView(.horizontal, showsIndicators: false) {
+          HStack(alignment: .top, spacing: DesignToken.Spacing.lg) {
+            ForEach(relatedBooks) { relatedBook in
+              Button {
+                onSelectRelatedBook(relatedBook)
+              } label: {
+                RelatedBookItem(book: relatedBook)
+              }
+              .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
           }
+          .padding(.horizontal, DesignToken.Spacing.xl - 4)
+          .padding(.bottom, DesignToken.Spacing.xs / 2)
         }
-        .padding(.horizontal, DesignToken.Spacing.xl - 4)
-        .padding(.bottom, DesignToken.Spacing.xs / 2)
       }
     }
     .padding(.top, DesignToken.Spacing.sectionSmall - 8)
@@ -310,7 +397,6 @@ private struct BookDetailContent {
   let keywords = ["명상", "인문"]
   let estimatedReadingTime = "약 3시간 20분"
   let descriptionParagraphs: [String]
-  let relatedBooks: [BookSummary]
 
   init(book: BookSummary) {
     if book.description.isEmpty {
@@ -321,44 +407,13 @@ private struct BookDetailContent {
     } else {
       descriptionParagraphs = [book.description]
     }
-
-    relatedBooks = Self.sampleRelatedBooks
   }
-
-  private static let sampleRelatedBooks = [
-    BookSummary(
-      isbn: "9788972916941",
-      title: "월든",
-      author: "헨리 데이비드 소로",
-      publisher: "까치",
-      publishedDate: "2020",
-      description: "자연 속에서 단순한 삶을 실천하며 삶의 본질을 성찰한 기록입니다.",
-      coverURL: nil
-    ),
-    BookSummary(
-      isbn: "9788991290527",
-      title: "명상록",
-      author: "마르쿠스 아우렐리우스",
-      publisher: "숲",
-      publishedDate: "2012",
-      description: "삶과 인간의 본성에 대한 스토아 철학자의 내면적 성찰을 담았습니다.",
-      coverURL: nil
-    ),
-    BookSummary(
-      isbn: "9788970135733",
-      title: "고독의 위로",
-      author: "앤서니 스토",
-      publisher: "책읽는수요일",
-      publishedDate: "2011",
-      description: "고독이 창조성과 내면의 성장에 주는 의미를 살펴봅니다.",
-      coverURL: nil
-    ),
-  ]
 }
 
 #Preview {
   NavigationStack {
     BookDetailView(
+      apiClient: CommendoAPIClient(baseURL: URL(string: "https://example.com")!),
       book: BookSummary(
         isbn: "9788972916941",
         title: "침묵의 세계",

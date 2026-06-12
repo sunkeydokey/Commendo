@@ -1,4 +1,4 @@
-export const RESPONSE_MAX_AGE_SECONDS = 86400;
+export const RESPONSE_MAX_AGE_SECONDS = 10800;
 
 export function json(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
