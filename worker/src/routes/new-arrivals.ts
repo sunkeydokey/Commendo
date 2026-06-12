@@ -80,15 +80,6 @@ export async function handleNewArrivals(
     return json({ error: params.error }, 400);
   }
 
-  const cacheKey = new Request(buildCacheKey(url, params.type, params.page, params.pageSize), {
-    method: "GET"
-  });
-  const cached = await caches.default.match(cacheKey);
-
-  if (cached) {
-    return cached;
-  }
-
   const snapshot = await getOrCreateSnapshot(env, params.type).catch((error) => {
     console.error(JSON.stringify({
       event: "new_arrival_snapshot_lazy_create_failed",
@@ -100,6 +91,16 @@ export async function handleNewArrivals(
 
   if (!snapshot) {
     return json({ error: "new_arrivals_snapshot_unavailable" }, 503);
+  }
+
+  const cacheKey = new Request(
+    buildCacheKey(url, snapshot.id, params.type, params.page, params.pageSize),
+    { method: "GET" }
+  );
+  const cached = await caches.default.match(cacheKey);
+
+  if (cached) {
+    return cached;
   }
 
   const offset = (params.page - 1) * params.pageSize;
@@ -300,9 +301,16 @@ function parseNewArrivalQuery(searchParams: URLSearchParams):
   return { type, page, pageSize };
 }
 
-function buildCacheKey(url: URL, type: NewArrivalType, page: number, pageSize: number): string {
+function buildCacheKey(
+  url: URL,
+  snapshotID: number,
+  type: NewArrivalType,
+  page: number,
+  pageSize: number
+): string {
   const cacheUrl = new URL(url.origin);
   cacheUrl.pathname = "/books/new-arrivals";
+  cacheUrl.searchParams.set("snapshot", String(snapshotID));
   cacheUrl.searchParams.set("type", type);
   cacheUrl.searchParams.set("page", String(page));
   cacheUrl.searchParams.set("pageSize", String(pageSize));

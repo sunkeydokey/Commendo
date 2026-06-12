@@ -67,15 +67,6 @@ export async function handlePopularLoans(
     return json({ error: params.error }, 400);
   }
 
-  const cacheKey = new Request(buildCacheKey(url, params.page, params.pageSize), {
-    method: "GET"
-  });
-  const cached = await caches.default.match(cacheKey);
-
-  if (cached) {
-    return cached;
-  }
-
   const snapshot = await getOrCreateSnapshot(env).catch((error) => {
     console.error(JSON.stringify({
       event: "popular_loan_snapshot_lazy_create_failed",
@@ -86,6 +77,15 @@ export async function handlePopularLoans(
 
   if (!snapshot) {
     return json({ error: "popular_loan_snapshot_unavailable" }, 503);
+  }
+
+  const cacheKey = new Request(buildCacheKey(url, snapshot.id, params.page, params.pageSize), {
+    method: "GET"
+  });
+  const cached = await caches.default.match(cacheKey);
+
+  if (cached) {
+    return cached;
   }
 
   const offset = (params.page - 1) * params.pageSize;
@@ -270,10 +270,10 @@ async function getLatestSnapshot(db: D1Database): Promise<PopularLoanSnapshotRow
     .first<PopularLoanSnapshotRow>();
 }
 
-function buildCacheKey(url: URL, page: number, pageSize: number): string {
+function buildCacheKey(url: URL, snapshotID: number, page: number, pageSize: number): string {
   const cacheUrl = new URL(url.origin);
   cacheUrl.pathname = "/books/trending";
-  cacheUrl.searchParams.set("version", "2");
+  cacheUrl.searchParams.set("snapshot", String(snapshotID));
   cacheUrl.searchParams.set("page", String(page));
   cacheUrl.searchParams.set("pageSize", String(pageSize));
   return cacheUrl.toString();

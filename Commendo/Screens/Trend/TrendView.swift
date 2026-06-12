@@ -74,6 +74,10 @@ struct TrendView: View {
       }
     }
     .scrollContentBackground(.hidden)
+    .refreshable {
+      newArrivals.refetch()
+      popularLoans.refetch()
+    }
     .query(
       $newArrivals,
       key: ["books", "new-arrivals", AnyQueryKeyPart(selectedType.rawValue)]
