@@ -58,6 +58,16 @@ interface RelatedBook {
   detailURL: string;
 }
 
+interface PopularLoanRecommendationRow {
+  title: string;
+  authors: string;
+  publisher: string;
+  publication_year: string;
+  isbn13: string;
+  cover_url: string;
+  detail_url: string;
+}
+
 interface BookDetail {
   title: string;
   author: string;
@@ -116,7 +126,7 @@ export async function handleBookDetail(
           event: "data4library_reader_recommendations_request_failed",
           message: error instanceof Error ? error.message : "unknown_error"
         }));
-        return [];
+        return fetchPopularLoanRecommendationsOrEmpty(env.DB, isbn);
       })
     ]);
   } catch (error) {
@@ -176,7 +186,7 @@ function buildAladinLookupURL(env: Env, isbn: string): string {
 function buildCacheKey(url: URL, isbn: string): string {
   const cacheUrl = new URL(url.origin);
   cacheUrl.pathname = "/books/detail";
-  cacheUrl.searchParams.set("version", "4");
+  cacheUrl.searchParams.set("version", "6");
   cacheUrl.searchParams.set("isbn", isbn);
   return cacheUrl.toString();
 }
@@ -191,13 +201,67 @@ async function fetchReaderRecommendations(
     return readerRecommendations;
   }
 
-  return fetchRecommendations(env, isbn);
+  const maniaRecommendations = await fetchRecommendations(env, isbn, "mania");
+
+  if (maniaRecommendations.length > 0) {
+    return maniaRecommendations;
+  }
+
+  return fetchPopularLoanRecommendationsOrEmpty(env.DB, isbn);
+}
+
+async function fetchPopularLoanRecommendationsOrEmpty(
+  db: D1Database,
+  isbn: string
+): Promise<RelatedBook[]> {
+  return fetchPopularLoanRecommendations(db, isbn).catch((error) => {
+    console.error(JSON.stringify({
+      event: "popular_loan_recommendations_fallback_failed",
+      message: error instanceof Error ? error.message : "unknown_error"
+    }));
+    return [];
+  });
+}
+
+async function fetchPopularLoanRecommendations(
+  db: D1Database,
+  isbn: string
+): Promise<RelatedBook[]> {
+  const rows = await db.prepare(
+    `SELECT books.title, books.authors, books.publisher, books.publication_year,
+            books.isbn13, books.cover_url, books.detail_url
+       FROM popular_loan_books AS books
+       JOIN popular_loan_snapshots AS snapshots ON snapshots.id = books.snapshot_id
+      WHERE snapshots.status = 'complete'
+        AND snapshots.id = (
+          SELECT id
+            FROM popular_loan_snapshots
+           WHERE status = 'complete'
+           ORDER BY fetched_at DESC, id DESC
+           LIMIT 1
+        )
+        AND books.isbn13 != ?
+      ORDER BY books.rank ASC
+      LIMIT ?`
+  )
+    .bind(isbn, RELATED_BOOK_LIMIT)
+    .all<PopularLoanRecommendationRow>();
+
+  return rows.results.map((book) => ({
+    title: book.title,
+    authors: book.authors,
+    publisher: book.publisher,
+    publicationYear: book.publication_year,
+    isbn13: book.isbn13,
+    coverURL: secureURL(book.cover_url),
+    detailURL: secureURL(book.detail_url)
+  }));
 }
 
 async function fetchRecommendations(
   env: Env,
   isbn: string,
-  type?: "reader"
+  type: "reader" | "mania"
 ): Promise<RelatedBook[]> {
   const response = await fetch(buildRecommendationsURL(env, isbn, type), {
     signal: AbortSignal.timeout(RECOMMENDATION_TIMEOUT_MS)
@@ -222,17 +286,14 @@ async function fetchRecommendations(
     .slice(0, RELATED_BOOK_LIMIT);
 }
 
-function buildRecommendationsURL(env: Env, isbn: string, type?: "reader"): string {
+function buildRecommendationsURL(env: Env, isbn: string, type: "reader" | "mania"): string {
   const url = new URL(env.DATA4LIBRARY_API_BASE_URL);
   const pathPrefix = url.pathname.endsWith("/") ? url.pathname.slice(0, -1) : url.pathname;
   url.pathname = `${pathPrefix}/recommandList`;
   url.searchParams.set("authKey", env.DATA4LIBRARY_API_KEY);
   url.searchParams.set("isbn13", isbn);
 
-  if (type) {
-    url.searchParams.set("type", type);
-  }
-
+  url.searchParams.set("type", type);
   url.searchParams.set("format", "json");
   return url.toString();
 }

@@ -14,7 +14,8 @@ extension CommendoAPIClient {
       queryItems: [URLQueryItem(name: "isbn", value: isbn)]
     )
 
-    let (data, response) = try await URLSession.shared.data(from: url)
+    let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
+    let (data, response) = try await URLSession.shared.data(for: request)
 
     guard let httpResponse = response as? HTTPURLResponse,
           200..<300 ~= httpResponse.statusCode else {
