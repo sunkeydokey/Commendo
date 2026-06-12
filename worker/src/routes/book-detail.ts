@@ -82,7 +82,7 @@ interface BookDetail {
 
 const RELATED_BOOK_LIMIT = 20;
 const ALADIN_DETAIL_TIMEOUT_MS = 10_000;
-const RECOMMENDATION_TIMEOUT_MS = 5_000;
+const RECOMMENDATION_TIMEOUT_MS = 10_000;
 
 export async function handleBookDetail(
   request: Request,
@@ -105,11 +105,13 @@ export async function handleBookDetail(
 
   let item: AladinBookItem | undefined;
   let relatedBooks: RelatedBook[] = [];
+  let recommendationsAvailable = true;
 
   try {
     [item, relatedBooks] = await Promise.all([
       fetchAladinBookDetail(env, isbn),
       fetchReaderRecommendations(env, isbn).catch((error) => {
+        recommendationsAvailable = false;
         console.error(JSON.stringify({
           event: "data4library_reader_recommendations_request_failed",
           message: error instanceof Error ? error.message : "unknown_error"
@@ -130,8 +132,14 @@ export async function handleBookDetail(
   }
 
   const response = json({ item: normalizeBook(item, relatedBooks) });
-  response.headers.set("cache-control", `public, max-age=${RESPONSE_MAX_AGE_SECONDS}`);
-  ctx.waitUntil(caches.default.put(cacheKey, response.clone()));
+
+  if (recommendationsAvailable) {
+    response.headers.set("cache-control", `public, max-age=${RESPONSE_MAX_AGE_SECONDS}`);
+    ctx.waitUntil(caches.default.put(cacheKey, response.clone()));
+  } else {
+    response.headers.set("cache-control", "no-store");
+  }
+
   return response;
 }
 
@@ -168,7 +176,7 @@ function buildAladinLookupURL(env: Env, isbn: string): string {
 function buildCacheKey(url: URL, isbn: string): string {
   const cacheUrl = new URL(url.origin);
   cacheUrl.pathname = "/books/detail";
-  cacheUrl.searchParams.set("version", "2");
+  cacheUrl.searchParams.set("version", "4");
   cacheUrl.searchParams.set("isbn", isbn);
   return cacheUrl.toString();
 }
@@ -177,7 +185,21 @@ async function fetchReaderRecommendations(
   env: Env,
   isbn: string
 ): Promise<RelatedBook[]> {
-  const response = await fetch(buildReaderRecommendationsURL(env, isbn), {
+  const readerRecommendations = await fetchRecommendations(env, isbn, "reader");
+
+  if (readerRecommendations.length > 0) {
+    return readerRecommendations;
+  }
+
+  return fetchRecommendations(env, isbn);
+}
+
+async function fetchRecommendations(
+  env: Env,
+  isbn: string,
+  type?: "reader"
+): Promise<RelatedBook[]> {
+  const response = await fetch(buildRecommendationsURL(env, isbn, type), {
     signal: AbortSignal.timeout(RECOMMENDATION_TIMEOUT_MS)
   });
 
@@ -200,13 +222,17 @@ async function fetchReaderRecommendations(
     .slice(0, RELATED_BOOK_LIMIT);
 }
 
-function buildReaderRecommendationsURL(env: Env, isbn: string): string {
+function buildRecommendationsURL(env: Env, isbn: string, type?: "reader"): string {
   const url = new URL(env.DATA4LIBRARY_API_BASE_URL);
   const pathPrefix = url.pathname.endsWith("/") ? url.pathname.slice(0, -1) : url.pathname;
   url.pathname = `${pathPrefix}/recommandList`;
   url.searchParams.set("authKey", env.DATA4LIBRARY_API_KEY);
   url.searchParams.set("isbn13", isbn);
-  url.searchParams.set("type", "reader");
+
+  if (type) {
+    url.searchParams.set("type", type);
+  }
+
   url.searchParams.set("format", "json");
   return url.toString();
 }
