@@ -47,23 +47,16 @@ struct BookDetailView: View {
   }
 
   var body: some View {
-    Group {
-      if bookDetail.isPending, bookDetail.data == nil {
-        ProgressView("도서 정보를 불러오는 중입니다.")
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else {
-        ScrollView(.vertical, showsIndicators: false) {
-          VStack(spacing: 0) {
-            serverStatusView
-            heroSection
-            compatibilitySection
-            introductionSection
-            insightSection
-            relatedBooksSection
-          }
-          .padding(.bottom, DesignToken.Spacing.xl)
-        }
+    ScrollView(.vertical, showsIndicators: false) {
+      VStack(spacing: 0) {
+        serverStatusView
+        heroSection
+        compatibilitySection
+        introductionSection
+        insightSection
+        relatedBooksSection
       }
+      .padding(.bottom, DesignToken.Spacing.xl)
     }
     .background(DesignToken.Color.backgroundCream)
     .navigationTitle("")
@@ -301,21 +294,14 @@ struct BookDetailView: View {
     }
   }
 
+  @ViewBuilder
   private var relatedBooksSection: some View {
-    VStack(alignment: .leading, spacing: DesignToken.Spacing.lg) {
-      Text("함께 읽으면 좋은 책")
-        .commendoTextStyle(DesignToken.Typography.detailSectionTitle)
-        .padding(.horizontal, DesignToken.Spacing.xl - 4)
-
-      if relatedBooks.isEmpty {
-        Text("추천 도서가 없습니다.")
-          .commendoTextStyle(
-            DesignToken.Typography.metadata,
-            color: DesignToken.Color.textSecondary
-          )
-          .frame(maxWidth: .infinity, minHeight: 80)
+    if !relatedBooks.isEmpty {
+      VStack(alignment: .leading, spacing: DesignToken.Spacing.lg) {
+        Text("함께 읽으면 좋은 책")
+          .commendoTextStyle(DesignToken.Typography.detailSectionTitle)
           .padding(.horizontal, DesignToken.Spacing.xl - 4)
-      } else {
+
         ScrollView(.horizontal, showsIndicators: false) {
           HStack(alignment: .top, spacing: DesignToken.Spacing.lg) {
             ForEach(relatedBooks) { relatedBook in
@@ -331,8 +317,8 @@ struct BookDetailView: View {
           .padding(.bottom, DesignToken.Spacing.xs / 2)
         }
       }
+      .padding(.top, DesignToken.Spacing.sectionSmall - 8)
     }
-    .padding(.top, DesignToken.Spacing.sectionSmall - 8)
   }
 
   private var floatingActionArea: some View {
