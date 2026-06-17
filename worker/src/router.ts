@@ -3,6 +3,7 @@ import { json } from "./http";
 import { handleBookDetail } from "./routes/book-detail";
 import { handleNewArrivals } from "./routes/new-arrivals";
 import { handlePopularLoans } from "./routes/popular-loans";
+import { handleSearch } from "./routes/search";
 
 const routes = new Map<string, Set<string>>([
   ["GET", new Set([
@@ -37,6 +38,10 @@ export async function routeRequest(
 
   if (request.method === "GET" && url.pathname === "/books/trending") {
     return handlePopularLoans(request, env, ctx);
+  }
+
+  if (request.method === "GET" && url.pathname === "/books/search") {
+    return handleSearch(request, env, ctx);
   }
 
   if (request.method === "GET" && url.pathname === "/books/detail") {

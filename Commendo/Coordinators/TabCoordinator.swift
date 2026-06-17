@@ -12,8 +12,10 @@ import Observation
 final class TabCoordinator {
   enum Tab: Hashable {
     case trend
+    case search
   }
 
   var selectedTab: Tab = .trend
   let trendCoordinator = TrendCoordinator()
+  let searchCoordinator = SearchCoordinator()
 }

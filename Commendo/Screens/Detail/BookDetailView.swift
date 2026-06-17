@@ -78,7 +78,8 @@ struct BookDetailView: View {
     }
     .query(
       $bookDetail,
-      key: ["books", "detail", "v4", AnyQueryKeyPart(book.isbn)]
+      key: ["books", "detail", "v5", AnyQueryKeyPart(book.isbn)],
+      enabled: BookIdentifier.isbn13(book.isbn) != nil
     ) { [apiClient, isbn = book.isbn] in
       try await apiClient.bookDetail(isbn: isbn)
     }

@@ -53,6 +53,79 @@ struct CommendoTests {
   }
 
   @MainActor
+  @Test func mapsBookSearchResultToSummary() {
+    let book = BookSearchResult(
+      title: "검색 도서",
+      author: "작가",
+      publisher: "출판사",
+      publishedDate: "2026-06-17",
+      isbn: "1234567890",
+      isbn13: "9791234567890",
+      coverURL: URL(string: "https://example.com/search.jpg"),
+      categoryName: "국내도서",
+      description: "검색 설명",
+      priceStandard: 18_000,
+      priceSales: 16_200,
+      link: nil
+    )
+
+    #expect(book.summary.id == "9791234567890")
+    #expect(book.summary.title == "검색 도서")
+    #expect(book.summary.author == "작가")
+    #expect(book.summary.description == "검색 설명")
+  }
+
+  @MainActor
+  @Test func usesOnlyISBN13AsBookIdentifier() {
+    let summary = BookSummary(
+      isbn: "1234567890",
+      title: "10자리 ISBN 도서",
+      author: "작가",
+      publisher: "출판사",
+      publishedDate: "2026",
+      description: "설명",
+      coverURL: nil
+    )
+    let searchResult = BookSearchResult(
+      title: "알라딘 내부 ID 도서",
+      author: "작가",
+      publisher: "출판사",
+      publishedDate: "2026",
+      isbn: "K092138437",
+      isbn13: "",
+      coverURL: nil,
+      categoryName: "국내도서",
+      description: "설명",
+      priceStandard: 0,
+      priceSales: 0,
+      link: nil
+    )
+    let newArrival = NewArrivalBook(
+      title: "신간",
+      author: "작가",
+      publisher: "출판사",
+      publishedDate: "2026",
+      isbn: "1234567890",
+      isbn13: "",
+      coverURL: nil,
+      categoryName: "국내도서",
+      description: "설명",
+      priceStandard: 0,
+      priceSales: 0,
+      link: nil
+    )
+
+    #expect(BookIdentifier.isbn13("9791234567890") == "9791234567890")
+    #expect(BookIdentifier.isbn13("1234567890") == nil)
+    #expect(BookIdentifier.isbn13("K092138437") == nil)
+    #expect(summary.id == "10자리 ISBN 도서-작가-출판사")
+    #expect(searchResult.id == "알라딘 내부 ID 도서-작가-출판사")
+    #expect(searchResult.summary.isbn.isEmpty)
+    #expect(newArrival.id == "신간-작가-출판사")
+    #expect(newArrival.summary.isbn.isEmpty)
+  }
+
+  @MainActor
   @Test func trendCoordinatorManagesBookDetailRoutes() {
     let coordinator = TrendCoordinator()
     let firstBook = BookSummary(
@@ -85,6 +158,49 @@ struct CommendoTests {
 
     coordinator.showAvailability(firstBook)
     #expect(coordinator.path.count == 2)
+  }
+
+  @MainActor
+  @Test func searchCoordinatorManagesBookDetailRoutes() {
+    let coordinator = SearchCoordinator()
+    let firstBook = BookSummary(
+      isbn: "1",
+      title: "검색 도서",
+      author: "작가",
+      publisher: "출판사",
+      publishedDate: "2026",
+      description: "설명",
+      coverURL: nil
+    )
+    let relatedBook = BookSummary(
+      isbn: "2",
+      title: "연관 도서",
+      author: "작가",
+      publisher: "출판사",
+      publishedDate: "2026",
+      description: "설명",
+      coverURL: nil
+    )
+
+    coordinator.showBookDetail(firstBook)
+    #expect(coordinator.path.count == 1)
+
+    coordinator.showRelatedBook(relatedBook)
+    #expect(coordinator.path.count == 2)
+
+    coordinator.pop()
+    #expect(coordinator.path.count == 1)
+
+    coordinator.showAvailability(firstBook)
+    #expect(coordinator.path.count == 2)
+  }
+
+  @Test func normalizesCommittedSearchValues() {
+    #expect(SearchCommit.normalizedValue(from: "  architecture  ") == "architecture")
+    #expect(SearchCommit.normalizedValue(from: "\n\t") == nil)
+    #expect(SearchCommit.normalizedValue(from: "a") == nil)
+    #expect(SearchCommit.normalizedValue(from: String(repeating: "a", count: 51)) == nil)
+    #expect(SearchCommit.normalizedValue(from: "mindful spaces") == SearchCommit.normalizedValue(from: " mindful spaces "))
   }
 
   @MainActor
@@ -161,6 +277,45 @@ struct CommendoTests {
     #expect(page.items.first?.rank == 1)
     #expect(page.items.first?.loanCount == 42)
     #expect(page.items.first?.coverURL?.absoluteString == "https://example.com/popular.jpg")
+  }
+
+  @MainActor
+  @Test func decodesBookSearchPage() throws {
+    let json = """
+    {
+      "query": "architecture",
+      "page": 1,
+      "pageSize": 20,
+      "totalResults": 1,
+      "fetchedAt": "2026-06-17T00:00:00.000Z",
+      "items": [
+        {
+          "title": "검색 도서",
+          "author": "작가",
+          "publisher": "출판사",
+          "publishedDate": "2026-06-17",
+          "isbn": "1234567890",
+          "isbn13": "9791234567890",
+          "coverURL": "https://example.com/search.jpg",
+          "categoryName": "국내도서",
+          "description": "설명",
+          "priceStandard": 18000,
+          "priceSales": 16200,
+          "link": "https://example.com/book"
+        }
+      ]
+    }
+    """.data(using: .utf8)!
+
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+
+    let page = try decoder.decode(BookSearchPage.self, from: json)
+
+    #expect(page.query == "architecture")
+    #expect(page.totalResults == 1)
+    #expect(page.items.first?.id == "9791234567890")
+    #expect(page.items.first?.coverURL?.absoluteString == "https://example.com/search.jpg")
   }
 
   @MainActor
