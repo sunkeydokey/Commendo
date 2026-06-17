@@ -17,14 +17,14 @@ struct BookSummary: Identifiable, Hashable {
   let coverURL: URL?
 
   var id: String {
-    isbn.isEmpty ? "\(title)-\(author)-\(publisher)" : isbn
+    BookIdentifier.isbn13(isbn) ?? "\(title)-\(author)-\(publisher)"
   }
 }
 
 extension NewArrivalBook {
   var summary: BookSummary {
     BookSummary(
-      isbn: isbn13.isEmpty ? isbn : isbn13,
+      isbn: BookIdentifier.isbn13(isbn13) ?? "",
       title: title,
       author: author,
       publisher: publisher,
@@ -38,12 +38,26 @@ extension NewArrivalBook {
 extension PopularLoanBook {
   var summary: BookSummary {
     BookSummary(
-      isbn: isbn13,
+      isbn: BookIdentifier.isbn13(isbn13) ?? "",
       title: title,
       author: authors,
       publisher: publisher,
       publishedDate: publicationYear,
       description: "",
+      coverURL: coverURL
+    )
+  }
+}
+
+extension BookSearchResult {
+  var summary: BookSummary {
+    BookSummary(
+      isbn: BookIdentifier.isbn13(isbn13) ?? "",
+      title: title,
+      author: author,
+      publisher: publisher,
+      publishedDate: publishedDate,
+      description: description,
       coverURL: coverURL
     )
   }

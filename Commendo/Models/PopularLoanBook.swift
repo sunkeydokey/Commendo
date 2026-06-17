@@ -19,7 +19,7 @@ struct PopularLoanBook: Decodable, Identifiable, Equatable, Sendable {
   let loanCount: Int
 
   var id: String {
-    isbn13.isEmpty ? "\(rank)-\(title)-\(authors)" : isbn13
+    BookIdentifier.isbn13(isbn13) ?? "\(rank)-\(title)-\(authors)"
   }
 }
 

@@ -34,7 +34,7 @@ struct BookDetail: Decodable, Equatable, Sendable {
 
   var summary: BookSummary {
     BookSummary(
-      isbn: isbn13.isEmpty ? isbn : isbn13,
+      isbn: BookIdentifier.isbn13(isbn13) ?? "",
       title: title,
       author: author,
       publisher: publisher,
@@ -56,7 +56,7 @@ struct RelatedBook: Decodable, Equatable, Sendable {
 
   var summary: BookSummary {
     BookSummary(
-      isbn: isbn13,
+      isbn: BookIdentifier.isbn13(isbn13) ?? "",
       title: title,
       author: authors,
       publisher: publisher,

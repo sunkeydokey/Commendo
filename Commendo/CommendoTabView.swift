@@ -19,6 +19,13 @@ struct CommendoTabView: View {
           coordinator: coordinator.trendCoordinator
         )
       }
+
+      Tab("검색", systemImage: "magnifyingglass", value: TabCoordinator.Tab.search) {
+        SearchCoordinatorView(
+          apiClient: apiClient,
+          coordinator: coordinator.searchCoordinator
+        )
+      }
     }
   }
 }

@@ -45,12 +45,8 @@ struct NewArrivalBook: Decodable, Identifiable, Equatable, Sendable {
   let link: URL?
 
   var id: String {
-    if !isbn13.isEmpty {
+    if let isbn13 = BookIdentifier.isbn13(isbn13) {
       return isbn13
-    }
-
-    if !isbn.isEmpty {
-      return isbn
     }
 
     return "\(title)-\(author)-\(publisher)"
