@@ -1,8 +1,8 @@
 import type { Env } from "./env";
 import { json } from "./http";
 import { handleBookDetail } from "./routes/book-detail";
+import { handleBestsellers } from "./routes/bestsellers";
 import { handleNewArrivals } from "./routes/new-arrivals";
-import { handlePopularLoans } from "./routes/popular-loans";
 import { handleSearch } from "./routes/search";
 
 const routes = new Map<string, Set<string>>([
@@ -37,7 +37,7 @@ export async function routeRequest(
   }
 
   if (request.method === "GET" && url.pathname === "/books/trending") {
-    return handlePopularLoans(request, env, ctx);
+    return handleBestsellers(request, env, ctx);
   }
 
   if (request.method === "GET" && url.pathname === "/books/search") {

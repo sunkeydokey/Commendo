@@ -1,7 +1,7 @@
 import type { Env } from "./env";
 import { routeRequest } from "./router";
 import { refreshNewArrivalSnapshots } from "./routes/new-arrivals";
-import { refreshPopularLoanSnapshot } from "./routes/popular-loans";
+import { refreshBestsellerSnapshot } from "./routes/bestsellers";
 
 export type { Env } from "./env";
 
@@ -14,7 +14,7 @@ export default {
     void controller;
     ctx.waitUntil(Promise.all([
       refreshNewArrivalSnapshots(env),
-      refreshPopularLoanSnapshot(env)
+      refreshBestsellerSnapshot(env)
     ]).then(() => undefined));
   }
 };
