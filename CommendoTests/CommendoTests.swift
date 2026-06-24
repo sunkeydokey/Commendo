@@ -364,4 +364,48 @@ struct CommendoTests {
     #expect(response.item.relatedBooks.first?.summary.id == "9788983921994")
     #expect(response.item.relatedBooks.first?.summary.author == "추천 작가")
   }
+
+  @MainActor
+  @Test func decodesBookDetailRelatedBookWithEmptyDetailURL() throws {
+    let json = """
+    {
+      "item": {
+        "title": "소년이 온다",
+        "author": "한강",
+        "publisher": "창비",
+        "publishedDate": "2014-05-19",
+        "isbn": "K662930932",
+        "isbn13": "9788936434120",
+        "coverURL": "https://example.com/detail.jpg",
+        "categoryId": 50993,
+        "categoryName": "국내도서",
+        "description": "설명",
+        "fullDescription": "",
+        "priceStandard": 15000,
+        "priceSales": 13500,
+        "link": "https://example.com/book",
+        "customerReviewRank": 10,
+        "itemPage": 216,
+        "tableOfContents": "",
+        "story": "",
+        "relatedBooks": [
+          {
+            "title": "작별하지 않는다",
+            "authors": "한강",
+            "publisher": "문학동네",
+            "publicationYear": "2021",
+            "isbn13": "9788954682152",
+            "coverURL": "https://example.com/related.jpg",
+            "detailURL": ""
+          }
+        ]
+      }
+    }
+    """.data(using: .utf8)!
+
+    let response = try JSONDecoder().decode(BookDetailResponse.self, from: json)
+
+    #expect(response.item.summary.id == "9788936434120")
+    #expect(response.item.relatedBooks.first?.detailURL == nil)
+  }
 }

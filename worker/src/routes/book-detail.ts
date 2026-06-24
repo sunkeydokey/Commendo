@@ -54,8 +54,8 @@ interface RelatedBook {
   publisher: string;
   publicationYear: string;
   isbn13: string;
-  coverURL: string;
-  detailURL: string;
+  coverURL: string | null;
+  detailURL: string | null;
 }
 
 interface BookDetail {
@@ -176,7 +176,7 @@ function buildAladinLookupURL(env: Env, isbn: string): string {
 function buildCacheKey(url: URL, isbn: string): string {
   const cacheUrl = new URL(url.origin);
   cacheUrl.pathname = "/books/detail";
-  cacheUrl.searchParams.set("version", "7");
+  cacheUrl.searchParams.set("version", "8");
   cacheUrl.searchParams.set("isbn", isbn);
   return cacheUrl.toString();
 }
@@ -280,8 +280,8 @@ function normalizeRelatedBook(item: Data4LibraryRecommendationItem): RelatedBook
     publisher: text(item.publisher),
     publicationYear: text(item.publication_year),
     isbn13: text(item.isbn13),
-    coverURL: secureURL(item.bookImageURL),
-    detailURL: secureURL(item.bookDtlUrl)
+    coverURL: optionalSecureURL(item.bookImageURL),
+    detailURL: optionalSecureURL(item.bookDtlUrl)
   };
 }
 
@@ -295,4 +295,9 @@ function integer(value: number | undefined): number {
 
 function secureURL(value: string | undefined): string {
   return text(value).replace(/^http:\/\//, "https://");
+}
+
+function optionalSecureURL(value: string | undefined): string | null {
+  const url = secureURL(value);
+  return url.length > 0 ? url : null;
 }
