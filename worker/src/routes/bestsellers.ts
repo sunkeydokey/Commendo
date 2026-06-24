@@ -18,7 +18,7 @@ interface AladinBookItem {
   bestRank?: number;
 }
 
-interface PopularLoanBook {
+interface BestsellerBook {
   rank: number;
   title: string;
   authors: string;
@@ -30,7 +30,7 @@ interface PopularLoanBook {
   loanCount: number;
 }
 
-interface PopularLoanSnapshotRow {
+interface BestsellerSnapshotRow {
   id: number;
   period_start: string;
   period_end: string;
@@ -39,7 +39,7 @@ interface PopularLoanSnapshotRow {
   content_hash: string;
 }
 
-interface PopularLoanBookRow {
+interface BestsellerBookRow {
   rank: number;
   title: string;
   authors: string;
@@ -48,13 +48,12 @@ interface PopularLoanBookRow {
   isbn13: string;
   cover_url: string;
   detail_url: string;
-  loan_count: number;
 }
 
-const POPULAR_LOAN_MAX_ITEMS = 20;
+const BESTSELLER_MAX_ITEMS = 20;
 const DB_BATCH_SIZE = 50;
 
-export async function handlePopularLoans(
+export async function handleBestsellers(
   request: Request,
   env: Env,
   ctx: ExecutionContext
@@ -68,14 +67,14 @@ export async function handlePopularLoans(
 
   const snapshot = await getOrCreateSnapshot(env).catch((error) => {
     console.error(JSON.stringify({
-      event: "popular_loan_snapshot_lazy_create_failed",
+      event: "bestseller_snapshot_lazy_create_failed",
       message: error instanceof Error ? error.message : "unknown_error"
     }));
     return null;
   });
 
   if (!snapshot) {
-    return json({ error: "popular_loan_snapshot_unavailable" }, 503);
+    return json({ error: "bestseller_snapshot_unavailable" }, 503);
   }
 
   const cacheKey = new Request(buildCacheKey(url, snapshot.id, params.page, params.pageSize), {
@@ -90,14 +89,14 @@ export async function handlePopularLoans(
   const offset = (params.page - 1) * params.pageSize;
   const rows = await env.DB.prepare(
     `SELECT rank, title, authors, publisher, publication_year, isbn13,
-            cover_url, detail_url, loan_count
-       FROM popular_loan_books
+            cover_url, detail_url
+       FROM bestseller_books
       WHERE snapshot_id = ?
       ORDER BY rank ASC
       LIMIT ? OFFSET ?`
   )
     .bind(snapshot.id, params.pageSize, offset)
-    .all<PopularLoanBookRow>();
+    .all<BestsellerBookRow>();
 
   const response = json({
     page: params.page,
@@ -114,16 +113,16 @@ export async function handlePopularLoans(
   return response;
 }
 
-export async function refreshPopularLoanSnapshot(env: Env): Promise<void> {
+export async function refreshBestsellerSnapshot(env: Env): Promise<void> {
   try {
     const snapshotDate = formatKoreanDate(new Date());
-    const books = await fetchPopularLoans(env);
+    const books = await fetchBestsellers(env);
     const contentHash = await hashBooks(books);
     const latest = await getLatestSnapshot(env.DB);
 
     if (latest?.content_hash === contentHash) {
       console.log(JSON.stringify({
-        event: "popular_loan_snapshot_unchanged",
+        event: "bestseller_snapshot_unchanged",
         count: books.length
       }));
       return;
@@ -131,18 +130,18 @@ export async function refreshPopularLoanSnapshot(env: Env): Promise<void> {
 
     await saveSnapshot(env.DB, snapshotDate, snapshotDate, contentHash, books);
     console.log(JSON.stringify({
-      event: "popular_loan_snapshot_saved",
+      event: "bestseller_snapshot_saved",
       count: books.length
     }));
   } catch (error) {
     console.error(JSON.stringify({
-      event: "popular_loan_snapshot_failed",
+      event: "bestseller_snapshot_failed",
       message: error instanceof Error ? error.message : "unknown_error"
     }));
   }
 }
 
-async function getOrCreateSnapshot(env: Env): Promise<PopularLoanSnapshotRow | null> {
+async function getOrCreateSnapshot(env: Env): Promise<BestsellerSnapshotRow | null> {
   const snapshot = await getLatestSnapshot(env.DB);
 
   if (snapshot && snapshot.period_start === snapshot.period_end) {
@@ -150,13 +149,13 @@ async function getOrCreateSnapshot(env: Env): Promise<PopularLoanSnapshotRow | n
   }
 
   const snapshotDate = formatKoreanDate(new Date());
-  const books = await fetchPopularLoans(env);
+  const books = await fetchBestsellers(env);
   const contentHash = await hashBooks(books);
   await saveSnapshot(env.DB, snapshotDate, snapshotDate, contentHash, books);
   return getLatestSnapshot(env.DB);
 }
 
-async function fetchPopularLoans(env: Env): Promise<PopularLoanBook[]> {
+async function fetchBestsellers(env: Env): Promise<BestsellerBook[]> {
   const response = await fetch(buildProviderURL(env));
 
   if (!response.ok) {
@@ -166,7 +165,7 @@ async function fetchPopularLoans(env: Env): Promise<PopularLoanBook[]> {
   const payload = await response.json<AladinListResponse>();
   const items = Array.isArray(payload.item) ? payload.item : [];
   const books = items
-    .slice(0, POPULAR_LOAN_MAX_ITEMS)
+    .slice(0, BESTSELLER_MAX_ITEMS)
     .map(normalizeBook);
 
   if (books.length === 0) {
@@ -184,7 +183,7 @@ function buildProviderURL(env: Env): string {
   url.searchParams.set("QueryType", "Bestseller");
   url.searchParams.set("SearchTarget", "Book");
   url.searchParams.set("Start", "1");
-  url.searchParams.set("MaxResults", String(POPULAR_LOAN_MAX_ITEMS));
+  url.searchParams.set("MaxResults", String(BESTSELLER_MAX_ITEMS));
   url.searchParams.set("Cover", "Big");
   url.searchParams.set("output", "JS");
   url.searchParams.set("Version", "20131101");
@@ -196,10 +195,10 @@ async function saveSnapshot(
   periodStart: string,
   periodEnd: string,
   contentHash: string,
-  books: PopularLoanBook[]
+  books: BestsellerBook[]
 ): Promise<void> {
   const snapshot = await db.prepare(
-    `INSERT INTO popular_loan_snapshots (
+    `INSERT INTO bestseller_snapshots (
        period_start, period_end, fetched_at, item_count, content_hash, status
      )
      VALUES (?, ?, ?, ?, ?, 'pending')
@@ -209,16 +208,16 @@ async function saveSnapshot(
     .first<{ id: number }>();
 
   if (!snapshot) {
-    throw new Error("popular_loan_snapshot_insert_failed");
+    throw new Error("bestseller_snapshot_insert_failed");
   }
 
   try {
     const statements = books.map((book) => db.prepare(
-      `INSERT INTO popular_loan_books (
+      `INSERT INTO bestseller_books (
          snapshot_id, rank, title, authors, publisher, publication_year, isbn13,
-         cover_url, detail_url, loan_count
+         cover_url, detail_url
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         snapshot.id,
@@ -229,8 +228,7 @@ async function saveSnapshot(
         book.publicationYear,
         book.isbn13,
         book.coverURL,
-        book.detailURL,
-        book.loanCount
+        book.detailURL
       ));
 
     for (let index = 0; index < statements.length; index += DB_BATCH_SIZE) {
@@ -238,29 +236,29 @@ async function saveSnapshot(
     }
 
     await db.prepare(
-      `UPDATE popular_loan_snapshots
+      `UPDATE bestseller_snapshots
           SET status = 'complete'
         WHERE id = ?`
     )
       .bind(snapshot.id)
       .run();
   } catch (error) {
-    await db.prepare("DELETE FROM popular_loan_snapshots WHERE id = ?")
+    await db.prepare("DELETE FROM bestseller_snapshots WHERE id = ?")
       .bind(snapshot.id)
       .run();
     throw error;
   }
 }
 
-async function getLatestSnapshot(db: D1Database): Promise<PopularLoanSnapshotRow | null> {
+async function getLatestSnapshot(db: D1Database): Promise<BestsellerSnapshotRow | null> {
   return db.prepare(
     `SELECT id, period_start, period_end, fetched_at, item_count, content_hash
-       FROM popular_loan_snapshots
+       FROM bestseller_snapshots
       WHERE status = 'complete'
       ORDER BY fetched_at DESC, id DESC
       LIMIT 1`
   )
-    .first<PopularLoanSnapshotRow>();
+    .first<BestsellerSnapshotRow>();
 }
 
 function buildCacheKey(url: URL, snapshotID: number, page: number, pageSize: number): string {
@@ -272,7 +270,7 @@ function buildCacheKey(url: URL, snapshotID: number, page: number, pageSize: num
   return cacheUrl.toString();
 }
 
-function normalizeBook(item: AladinBookItem, index: number): PopularLoanBook {
+function normalizeBook(item: AladinBookItem, index: number): BestsellerBook {
   return {
     rank: positiveInteger(item.bestRank) || index + 1,
     title: text(item.title),
@@ -286,7 +284,7 @@ function normalizeBook(item: AladinBookItem, index: number): PopularLoanBook {
   };
 }
 
-function bookFromRow(row: PopularLoanBookRow): PopularLoanBook {
+function bookFromRow(row: BestsellerBookRow): BestsellerBook {
   return {
     rank: row.rank,
     title: row.title,
@@ -296,11 +294,11 @@ function bookFromRow(row: PopularLoanBookRow): PopularLoanBook {
     isbn13: row.isbn13,
     coverURL: secureURL(row.cover_url),
     detailURL: row.detail_url,
-    loanCount: row.loan_count
+    loanCount: 0
   };
 }
 
-async function hashBooks(books: PopularLoanBook[]): Promise<string> {
+async function hashBooks(books: BestsellerBook[]): Promise<string> {
   const bytes = new TextEncoder().encode(JSON.stringify(books));
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
