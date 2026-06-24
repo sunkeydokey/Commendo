@@ -341,7 +341,7 @@ private struct PopularLoanSection: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       HStack(alignment: .firstTextBaseline) {
-        Text("인기 대출 도서")
+        Text("베스트셀러")
           .commendoTextStyle(DesignToken.Typography.cardTitle)
 
         Spacer()
@@ -354,11 +354,11 @@ private struct PopularLoanSection: View {
         ProgressView()
           .frame(maxWidth: .infinity, minHeight: 120)
       } else if error != nil, books.isEmpty {
-        Text("인기 대출 도서를 불러오지 못했습니다.")
+        Text("베스트셀러를 불러오지 못했습니다.")
           .commendoTextStyle(DesignToken.Typography.metadata, color: DesignToken.Color.textSecondary)
           .frame(maxWidth: .infinity, minHeight: 120)
       } else if books.isEmpty {
-        Text("표시할 인기 대출 도서가 없습니다.")
+        Text("표시할 베스트셀러가 없습니다.")
           .commendoTextStyle(DesignToken.Typography.metadata, color: DesignToken.Color.textSecondary)
           .frame(maxWidth: .infinity, minHeight: 120)
       } else {
@@ -380,7 +380,7 @@ private struct PopularLoanSection: View {
       return "마지막 갱신 \(fetchedAt.formatted(date: .abbreviated, time: .omitted))"
     }
 
-    return "최근 7일"
+    return "오늘 기준"
   }
 }
 
@@ -418,8 +418,10 @@ private struct PopularLoanRow: View {
 
         Spacer()
 
-        Text("\(book.loanCount)회")
-          .commendoTextStyle(DesignToken.Typography.metadata, color: DesignToken.Color.textSecondary)
+        if !book.publicationYear.isEmpty {
+          Text(book.publicationYear)
+            .commendoTextStyle(DesignToken.Typography.metadata, color: DesignToken.Color.textSecondary)
+        }
       }
       .contentShape(Rectangle())
     }

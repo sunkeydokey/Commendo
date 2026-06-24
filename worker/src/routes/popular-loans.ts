@@ -1,22 +1,21 @@
 import type { Env } from "../env";
 import { json, parsePageQuery, RESPONSE_MAX_AGE_SECONDS } from "../http";
 
-interface Data4LibraryLoanResponse {
-  response?: {
-    docs?: Array<{ doc?: Data4LibraryLoanItem }>;
-  };
+interface AladinListResponse {
+  item?: AladinBookItem[];
 }
 
-interface Data4LibraryLoanItem {
-  ranking?: string | number;
-  bookname?: string;
-  authors?: string;
+interface AladinBookItem {
+  title?: string;
+  author?: string;
   publisher?: string;
-  publication_year?: string;
+  pubDate?: string;
+  pubdate?: string;
+  isbn?: string;
   isbn13?: string;
-  bookImageURL?: string;
-  bookDtlUrl?: string;
-  loan_count?: string | number;
+  cover?: string;
+  link?: string;
+  bestRank?: number;
 }
 
 interface PopularLoanBook {
@@ -117,8 +116,8 @@ export async function handlePopularLoans(
 
 export async function refreshPopularLoanSnapshot(env: Env): Promise<void> {
   try {
-    const period = recentKoreanDateRange(new Date());
-    const books = await fetchPopularLoans(env, period.start, period.end);
+    const snapshotDate = formatKoreanDate(new Date());
+    const books = await fetchPopularLoans(env);
     const contentHash = await hashBooks(books);
     const latest = await getLatestSnapshot(env.DB);
 
@@ -130,7 +129,7 @@ export async function refreshPopularLoanSnapshot(env: Env): Promise<void> {
       return;
     }
 
-    await saveSnapshot(env.DB, period.start, period.end, contentHash, books);
+    await saveSnapshot(env.DB, snapshotDate, snapshotDate, contentHash, books);
     console.log(JSON.stringify({
       event: "popular_loan_snapshot_saved",
       count: books.length
@@ -146,55 +145,49 @@ export async function refreshPopularLoanSnapshot(env: Env): Promise<void> {
 async function getOrCreateSnapshot(env: Env): Promise<PopularLoanSnapshotRow | null> {
   const snapshot = await getLatestSnapshot(env.DB);
 
-  if (snapshot) {
+  if (snapshot && snapshot.period_start === snapshot.period_end) {
     return snapshot;
   }
 
-  const period = recentKoreanDateRange(new Date());
-  const books = await fetchPopularLoans(env, period.start, period.end);
+  const snapshotDate = formatKoreanDate(new Date());
+  const books = await fetchPopularLoans(env);
   const contentHash = await hashBooks(books);
-  await saveSnapshot(env.DB, period.start, period.end, contentHash, books);
+  await saveSnapshot(env.DB, snapshotDate, snapshotDate, contentHash, books);
   return getLatestSnapshot(env.DB);
 }
 
-async function fetchPopularLoans(
-  env: Env,
-  periodStart: string,
-  periodEnd: string
-): Promise<PopularLoanBook[]> {
-  const response = await fetch(buildProviderURL(env, periodStart, periodEnd));
+async function fetchPopularLoans(env: Env): Promise<PopularLoanBook[]> {
+  const response = await fetch(buildProviderURL(env));
 
   if (!response.ok) {
-    throw new Error(`data4library_popular_loan_request_failed_${response.status}`);
+    throw new Error(`aladin_bestseller_request_failed_${response.status}`);
   }
 
-  const payload = await response.json<Data4LibraryLoanResponse>();
-  const docs = Array.isArray(payload.response?.docs) ? payload.response.docs : [];
-  const books = docs
-    .map(({ doc }) => doc)
-    .filter((doc): doc is Data4LibraryLoanItem => doc !== undefined)
-    .map(normalizeBook)
-    .filter((book) => book.rank > 0)
+  const payload = await response.json<AladinListResponse>();
+  const items = Array.isArray(payload.item) ? payload.item : [];
+  const books = items
     .slice(0, POPULAR_LOAN_MAX_ITEMS)
-    .map((book, index) => ({ ...book, rank: index + 1 }));
+    .map(normalizeBook);
 
   if (books.length === 0) {
-    throw new Error("data4library_popular_loan_empty_response");
+    throw new Error("aladin_bestseller_empty_response");
   }
 
   return books;
 }
 
-function buildProviderURL(env: Env, periodStart: string, periodEnd: string): string {
-  const url = new URL(env.DATA4LIBRARY_API_BASE_URL);
+function buildProviderURL(env: Env): string {
+  const url = new URL(env.ALADIN_API_BASE_URL);
   const pathPrefix = url.pathname.endsWith("/") ? url.pathname.slice(0, -1) : url.pathname;
-  url.pathname = `${pathPrefix}/loanItemSrch`;
-  url.searchParams.set("authKey", env.DATA4LIBRARY_API_KEY);
-  url.searchParams.set("startDt", periodStart);
-  url.searchParams.set("endDt", periodEnd);
-  url.searchParams.set("pageNo", "1");
-  url.searchParams.set("pageSize", String(POPULAR_LOAN_MAX_ITEMS));
-  url.searchParams.set("format", "json");
+  url.pathname = `${pathPrefix}/ItemList.aspx`;
+  url.searchParams.set("ttbkey", env.ALADIN_API_KEY);
+  url.searchParams.set("QueryType", "Bestseller");
+  url.searchParams.set("SearchTarget", "Book");
+  url.searchParams.set("Start", "1");
+  url.searchParams.set("MaxResults", String(POPULAR_LOAN_MAX_ITEMS));
+  url.searchParams.set("Cover", "Big");
+  url.searchParams.set("output", "JS");
+  url.searchParams.set("Version", "20131101");
   return url.toString();
 }
 
@@ -279,17 +272,17 @@ function buildCacheKey(url: URL, snapshotID: number, page: number, pageSize: num
   return cacheUrl.toString();
 }
 
-function normalizeBook(item: Data4LibraryLoanItem): PopularLoanBook {
+function normalizeBook(item: AladinBookItem, index: number): PopularLoanBook {
   return {
-    rank: positiveInteger(item.ranking),
-    title: text(item.bookname),
-    authors: text(item.authors),
+    rank: positiveInteger(item.bestRank) || index + 1,
+    title: text(item.title),
+    authors: text(item.author),
     publisher: text(item.publisher),
-    publicationYear: text(item.publication_year),
-    isbn13: text(item.isbn13),
-    coverURL: secureURL(item.bookImageURL),
-    detailURL: text(item.bookDtlUrl),
-    loanCount: nonNegativeInteger(item.loan_count)
+    publicationYear: publicationYear(item.pubDate ?? item.pubdate),
+    isbn13: text(item.isbn13 ?? item.isbn),
+    coverURL: secureURL(item.cover),
+    detailURL: text(item.link),
+    loanCount: 0
   };
 }
 
@@ -327,16 +320,12 @@ function positiveInteger(value: string | number | undefined): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
 }
 
-function nonNegativeInteger(value: string | number | undefined): number {
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
+function publicationYear(value: string | undefined): string {
+  return text(value).slice(0, 4);
 }
 
-function recentKoreanDateRange(date: Date): { start: string; end: string } {
-  const koreanTime = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-  const end = formatDate(new Date(koreanTime.getTime() - 24 * 60 * 60 * 1000));
-  const start = formatDate(new Date(koreanTime.getTime() - 7 * 24 * 60 * 60 * 1000));
-  return { start, end };
+function formatKoreanDate(date: Date): string {
+  return formatDate(new Date(date.getTime() + 9 * 60 * 60 * 1000));
 }
 
 function formatDate(date: Date): string {
