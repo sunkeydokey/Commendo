@@ -5,6 +5,7 @@
 //  Created by 이선기 on 6/8/26.
 //
 
+import SwiftData
 import SwiftUI
 import SunKit
 import SunKitSwiftUI
@@ -23,6 +24,7 @@ struct CommendoApp: App {
     WindowGroup {
       if let apiClient {
         CommendoTabView(apiClient: apiClient, coordinator: tabCoordinator)
+          .modelContainer(for: BookBookmark.self)
           .queryClient(queryClient)
       } else {
         Text("앱 설정을 확인해 주세요.")

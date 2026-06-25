@@ -126,6 +126,57 @@ struct CommendoTests {
   }
 
   @MainActor
+  @Test func mapsBookSummaryToBookmark() {
+    let book = BookSummary(
+      isbn: "9791234567890",
+      title: "저장 도서",
+      author: "작가",
+      publisher: "출판사",
+      publishedDate: "2026",
+      description: "설명",
+      coverURL: URL(string: "https://example.com/book.jpg")
+    )
+    let now = Date(timeIntervalSince1970: 100)
+
+    let bookmark = BookBookmark(
+      book: book,
+      rating: 4.5,
+      review: "  좋은 책  ",
+      now: now
+    )
+
+    #expect(bookmark.bookID == "9791234567890")
+    #expect(bookmark.isbn13 == "9791234567890")
+    #expect(bookmark.title == "저장 도서")
+    #expect(bookmark.author == "작가")
+    #expect(bookmark.publisher == "출판사")
+    #expect(bookmark.publishedDate == "2026")
+    #expect(bookmark.bookDescription == "설명")
+    #expect(bookmark.coverURLString == "https://example.com/book.jpg")
+    #expect(bookmark.rating == 4.5)
+    #expect(bookmark.review == "좋은 책")
+    #expect(bookmark.createdAt == now)
+    #expect(bookmark.updatedAt == now)
+    #expect(bookmark.summary.id == "9791234567890")
+    #expect(bookmark.summary.coverURL == URL(string: "https://example.com/book.jpg"))
+  }
+
+  @Test func validatesBookmarkRating() {
+    #expect(BookBookmark.isValidRating(0.5))
+    #expect(BookBookmark.isValidRating(3.5))
+    #expect(BookBookmark.isValidRating(5.0))
+    #expect(!BookBookmark.isValidRating(0))
+    #expect(!BookBookmark.isValidRating(5.5))
+    #expect(!BookBookmark.isValidRating(3.3))
+  }
+
+  @Test func normalizesBookmarkReview() {
+    #expect(BookBookmark.normalizedReview("  좋았어요  ") == "좋았어요")
+    #expect(BookBookmark.normalizedReview(" \n\t ") == nil)
+    #expect(BookBookmark.normalizedReview(nil) == nil)
+  }
+
+  @MainActor
   @Test func trendCoordinatorManagesBookDetailRoutes() {
     let coordinator = TrendCoordinator()
     let firstBook = BookSummary(
