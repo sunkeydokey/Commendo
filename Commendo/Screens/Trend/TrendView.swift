@@ -7,13 +7,17 @@
 
 import SunKit
 import SunKitSwiftUI
+import SwiftData
 import SwiftUI
 
 struct TrendView: View {
   let apiClient: CommendoAPIClient
   let onSelectBook: (BookSummary) -> Void
 
+  @Environment(\.modelContext) private var modelContext
   @State private var selectedType: NewArrivalListType = .special
+  @State private var myBooks: [BookBookmark] = []
+  @State private var hasMoreMyBooks = false
 
   @QueryBinding(
     queryOptions: QueryOptions(retry: .count(1)),
@@ -30,12 +34,6 @@ struct TrendView: View {
       SelectableChipItem(id: type.rawValue, title: type.title)
     }
   }
-
-  private let recentlyViewedBooks = [
-    RecentBook(id: "recent-1", title: "고요한 밤의 독서"),
-    RecentBook(id: "recent-2", title: "문장의 지도"),
-    RecentBook(id: "recent-3", title: "오늘의 산책"),
-  ]
 
   var body: some View {
     ScrollView(.vertical, showsIndicators: false) {
@@ -58,7 +56,12 @@ struct TrendView: View {
           onSelectBook: onSelectBook
         )
 
-        RecentlyViewedSection(books: recentlyViewedBooks)
+        MyBooksSection(
+          bookmarks: myBooks,
+          hasMore: hasMoreMyBooks,
+          onLoadMore: loadMoreMyBooks,
+          onSelectBook: onSelectBook
+        )
           .padding(.horizontal, 20)
 
         PopularLoanSection(
@@ -77,7 +80,9 @@ struct TrendView: View {
     .refreshable {
       newArrivals.refetch()
       popularLoans.refetch()
+      loadInitialMyBooks()
     }
+    .onAppear(perform: loadInitialMyBooks)
     .query(
       $newArrivals,
       key: ["books", "new-arrivals", AnyQueryKeyPart(selectedType.rawValue)]
@@ -91,11 +96,37 @@ struct TrendView: View {
       try await apiClient.popularLoans()
     }
   }
-}
 
-private struct RecentBook: Identifiable {
-  let id: String
-  let title: String
+  private func loadInitialMyBooks() {
+    myBooks = []
+    fetchMyBooks(offset: 0)
+  }
+
+  private func loadMoreMyBooks() {
+    fetchMyBooks(offset: myBooks.count)
+  }
+
+  private func fetchMyBooks(offset: Int) {
+    var descriptor = FetchDescriptor<BookBookmark>(
+      sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+    )
+    descriptor.fetchLimit = 11
+    descriptor.fetchOffset = offset
+
+    guard let fetchedBooks = try? modelContext.fetch(descriptor) else {
+      hasMoreMyBooks = false
+      return
+    }
+
+    hasMoreMyBooks = fetchedBooks.count > 10
+    let page = Array(fetchedBooks.prefix(10))
+
+    if offset == 0 {
+      myBooks = page
+    } else {
+      myBooks.append(contentsOf: page)
+    }
+  }
 }
 
 private struct SelectableChipBar: View {
@@ -302,26 +333,92 @@ private struct MessageBookList: View {
   }
 }
 
-private struct RecentlyViewedSection: View {
-  let books: [RecentBook]
+private struct MyBooksSection: View {
+  let bookmarks: [BookBookmark]
+  let hasMore: Bool
+  let onLoadMore: () -> Void
+  let onSelectBook: (BookSummary) -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text("최근 본 도서")
-        .commendoTextStyle(DesignToken.Typography.cardTitle)
+      HStack(alignment: .firstTextBaseline) {
+        Text("나의 도서")
+          .commendoTextStyle(DesignToken.Typography.cardTitle)
 
-      HStack(spacing: 8) {
-        ForEach(books) { book in
-          RoundedRectangle(cornerRadius: DesignToken.Radius.standard)
-            .fill(DesignToken.Color.charcoal04)
-            .overlay {
-              RoundedRectangle(cornerRadius: DesignToken.Radius.standard)
-                .stroke(DesignToken.Color.borderLight, lineWidth: 1)
+        Spacer()
+
+        Text("\(bookCountTitle)")
+          .commendoTextStyle(DesignToken.Typography.metadata, color: DesignToken.Color.textSecondary)
+      }
+
+      if bookmarks.isEmpty {
+        Text("저장한 도서가 없습니다.")
+          .commendoTextStyle(DesignToken.Typography.metadata, color: DesignToken.Color.textSecondary)
+          .frame(maxWidth: .infinity, minHeight: 88, alignment: .center)
+          .background(DesignToken.Color.charcoal03)
+          .clipShape(RoundedRectangle(cornerRadius: DesignToken.Radius.standard))
+      } else {
+        ScrollView(.horizontal, showsIndicators: false) {
+          HStack(alignment: .top, spacing: 16) {
+            ForEach(Array(bookmarks.enumerated()), id: \.element.bookID) { index, bookmark in
+              Button {
+                onSelectBook(bookmark.summary)
+              } label: {
+                BookCardItem(
+                  model: BookCardItem.Model(
+                    id: bookmark.bookID,
+                    title: bookmark.title,
+                    metadata: bookmark.author,
+                    imageURL: bookmark.summary.coverURL
+                  ),
+                  coverTint: coverTint(at: index),
+                  cachePolicy: .newArrivalCover
+                )
+              }
+              .buttonStyle(.plain)
             }
-            .frame(width: 48, height: 64)
-            .accessibilityLabel(book.title)
+
+            if hasMore {
+              Button {
+                onLoadMore()
+              } label: {
+                VStack(spacing: 8) {
+                  Image(systemName: "plus")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(DesignToken.Color.textPrimary)
+
+                  Text("더보기")
+                    .commendoTextStyle(DesignToken.Typography.metadata)
+                }
+                .frame(width: 88, height: 270)
+                .background(DesignToken.Color.charcoal03)
+                .clipShape(RoundedRectangle(cornerRadius: DesignToken.Radius.comfortable))
+                .overlay {
+                  RoundedRectangle(cornerRadius: DesignToken.Radius.comfortable)
+                    .stroke(DesignToken.Color.borderLight, lineWidth: 1)
+                }
+              }
+              .buttonStyle(.plain)
+            }
+          }
+          .padding(.bottom, 4)
         }
       }
+    }
+  }
+
+  private var bookCountTitle: String {
+    hasMore ? "\(bookmarks.count)+" : "\(bookmarks.count)권"
+  }
+
+  private func coverTint(at index: Int) -> Color {
+    switch index % 3 {
+    case 0:
+      DesignToken.Color.charcoal03
+    case 1:
+      DesignToken.Color.charcoal04
+    default:
+      DesignToken.Color.borderLight
     }
   }
 }
