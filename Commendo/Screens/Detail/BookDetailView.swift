@@ -7,6 +7,7 @@
 
 import SunKit
 import SunKitSwiftUI
+import SwiftData
 import SwiftUI
 
 struct BookDetailView: View {
@@ -15,7 +16,12 @@ struct BookDetailView: View {
   let onSelectRelatedBook: (BookSummary) -> Void
   let onFindAvailability: (() -> Void)?
 
-  @State private var isBookmarked = false
+  @Environment(\.modelContext) private var modelContext
+  @Query private var bookmarks: [BookBookmark]
+  @State private var isShowingBookmarkEditor = false
+  @State private var isShowingBookmarkActions = false
+  @State private var draftRating: Double?
+  @State private var draftReview = ""
 
   @QueryBinding(
     queryOptions: QueryOptions(retry: .count(1)),
@@ -32,6 +38,14 @@ struct BookDetailView: View {
     self.book = book
     self.onSelectRelatedBook = onSelectRelatedBook
     self.onFindAvailability = onFindAvailability
+    let bookID = book.id
+    _bookmarks = Query(
+      filter: #Predicate<BookBookmark> { bookmark in
+        bookmark.bookID == bookID
+      },
+      sort: \BookBookmark.updatedAt,
+      order: .reverse
+    )
   }
 
   private var displayedBook: BookSummary {
@@ -44,6 +58,14 @@ struct BookDetailView: View {
 
   private var relatedBooks: [BookSummary] {
     bookDetail.data?.item.relatedBooks.map(\.summary) ?? []
+  }
+
+  private var currentBookmark: BookBookmark? {
+    bookmarks.first
+  }
+
+  private var isBookmarked: Bool {
+    currentBookmark != nil
   }
 
   var body: some View {
@@ -64,7 +86,7 @@ struct BookDetailView: View {
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
         Button {
-          isBookmarked.toggle()
+          handleBookmarkButtonTap()
         } label: {
           Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
             .foregroundStyle(DesignToken.Color.textPrimary)
@@ -76,6 +98,22 @@ struct BookDetailView: View {
     .safeAreaInset(edge: .bottom, spacing: 0) {
       floatingActionArea
     }
+    .commendoCustomAlert(isPresented: $isShowingBookmarkActions) {
+      BookmarkActionAlertView(
+        onEdit: openBookmarkEditorForExistingBookmark,
+        onDelete: deleteBookmark,
+        onCancel: { isShowingBookmarkActions = false }
+      )
+    }
+    .commendoCustomAlert(isPresented: $isShowingBookmarkEditor) {
+      BookmarkEditorAlertView(
+        title: isBookmarked ? "북마크 수정" : "북마크 저장",
+        rating: $draftRating,
+        review: $draftReview,
+        onCancel: { isShowingBookmarkEditor = false },
+        onSave: saveBookmark
+      )
+    }
     .query(
       $bookDetail,
       key: ["books", "detail", "v6", AnyQueryKeyPart(book.isbn)],
@@ -83,6 +121,65 @@ struct BookDetailView: View {
     ) { [apiClient, isbn = book.isbn] in
       try await apiClient.bookDetail(isbn: isbn)
     }
+  }
+
+  private func handleBookmarkButtonTap() {
+    if isBookmarked {
+      isShowingBookmarkActions = true
+    } else {
+      draftRating = nil
+      draftReview = ""
+      isShowingBookmarkEditor = true
+    }
+  }
+
+  private func openBookmarkEditorForExistingBookmark() {
+    guard let bookmark = currentBookmark else {
+      isShowingBookmarkActions = false
+      return
+    }
+
+    draftRating = bookmark.rating
+    draftReview = bookmark.review ?? ""
+    isShowingBookmarkActions = false
+    isShowingBookmarkEditor = true
+  }
+
+  private func saveBookmark() {
+    guard let draftRating,
+          BookBookmark.isValidRating(draftRating) else {
+      return
+    }
+
+    if let currentBookmark {
+      currentBookmark.update(
+        from: displayedBook,
+        rating: draftRating,
+        review: draftReview
+      )
+    } else {
+      let bookmark = BookBookmark(
+        book: displayedBook,
+        bookID: book.id,
+        rating: draftRating,
+        review: draftReview
+      )
+      modelContext.insert(bookmark)
+    }
+
+    try? modelContext.save()
+    isShowingBookmarkEditor = false
+  }
+
+  private func deleteBookmark() {
+    guard let currentBookmark else {
+      isShowingBookmarkActions = false
+      return
+    }
+
+    modelContext.delete(currentBookmark)
+    try? modelContext.save()
+    isShowingBookmarkActions = false
   }
 
   @ViewBuilder
@@ -413,4 +510,5 @@ private struct BookDetailContent {
       onSelectRelatedBook: { _ in }
     )
   }
+  .modelContainer(for: BookBookmark.self, inMemory: true)
 }
