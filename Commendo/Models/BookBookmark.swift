@@ -15,6 +15,7 @@ final class BookBookmark {
   var title: String
   var author: String
   var publisher: String
+  var categoryName: String?
   var publishedDate: String
   var bookDescription: String
   var coverURLString: String?
@@ -38,6 +39,7 @@ final class BookBookmark {
   init(
     book: BookSummary,
     bookID: String? = nil,
+    categoryName: String? = nil,
     rating: Double,
     review: String?,
     now: Date = Date()
@@ -47,6 +49,7 @@ final class BookBookmark {
     title = book.title
     author = book.author
     publisher = book.publisher
+    self.categoryName = Self.normalizedCategory(categoryName)
     publishedDate = book.publishedDate
     bookDescription = book.description
     coverURLString = book.coverURL?.absoluteString
@@ -58,6 +61,7 @@ final class BookBookmark {
 
   func update(
     from book: BookSummary,
+    categoryName: String? = nil,
     rating: Double,
     review: String?,
     now: Date = Date()
@@ -66,6 +70,7 @@ final class BookBookmark {
     title = book.title
     author = book.author
     publisher = book.publisher
+    self.categoryName = Self.normalizedCategory(categoryName)
     publishedDate = book.publishedDate
     bookDescription = book.description
     coverURLString = book.coverURL?.absoluteString
@@ -84,6 +89,15 @@ final class BookBookmark {
 
   static func normalizedReview(_ review: String?) -> String? {
     guard let trimmed = review?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !trimmed.isEmpty else {
+      return nil
+    }
+
+    return trimmed
+  }
+
+  static func normalizedCategory(_ categoryName: String?) -> String? {
+    guard let trimmed = categoryName?.trimmingCharacters(in: .whitespacesAndNewlines),
           !trimmed.isEmpty else {
       return nil
     }

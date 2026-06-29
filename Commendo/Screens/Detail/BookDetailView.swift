@@ -18,10 +18,12 @@ struct BookDetailView: View {
 
   @Environment(\.modelContext) private var modelContext
   @Query private var bookmarks: [BookBookmark]
+  @Query(sort: \BookBookmark.updatedAt, order: .reverse) private var allBookmarks: [BookBookmark]
   @State private var isShowingBookmarkEditor = false
   @State private var isShowingBookmarkActions = false
   @State private var draftRating: Double?
   @State private var draftReview = ""
+  private let recommendationScoringService = RecommendationScoringService()
 
   @QueryBinding(
     queryOptions: QueryOptions(retry: .count(1)),
@@ -62,6 +64,14 @@ struct BookDetailView: View {
 
   private var currentBookmark: BookBookmark? {
     bookmarks.first
+  }
+
+  private var recommendationResult: RecommendationResult {
+    recommendationScoringService.score(
+      book: displayedBook,
+      detail: bookDetail.data?.item,
+      bookmarks: allBookmarks
+    )
   }
 
   private var isBookmarked: Bool {
@@ -154,6 +164,7 @@ struct BookDetailView: View {
     if let currentBookmark {
       currentBookmark.update(
         from: displayedBook,
+        categoryName: bookDetail.data?.item.categoryName,
         rating: draftRating,
         review: draftReview
       )
@@ -161,6 +172,7 @@ struct BookDetailView: View {
       let bookmark = BookBookmark(
         book: displayedBook,
         bookID: book.id,
+        categoryName: bookDetail.data?.item.categoryName,
         rating: draftRating,
         review: draftReview
       )
@@ -269,15 +281,20 @@ struct BookDetailView: View {
   }
 
   private var compatibilitySection: some View {
-    VStack(alignment: .leading, spacing: DesignToken.Spacing.lg) {
+    let recommendation = recommendationResult
+
+    return VStack(alignment: .leading, spacing: DesignToken.Spacing.lg) {
       HStack {
-        Text("잘 맞을 가능성이 높아요")
+        Text("추천지수 \(recommendation.score)")
           .commendoTextStyle(DesignToken.Typography.caption)
 
         Spacer()
 
-        Image(systemName: "sparkles")
-          .foregroundStyle(DesignToken.Color.textPrimary)
+        Text(confidenceTitle(for: recommendation.confidence))
+          .commendoTextStyle(
+            DesignToken.Typography.metadata,
+            color: DesignToken.Color.textSecondary
+          )
       }
 
       GeometryReader { proxy in
@@ -286,17 +303,28 @@ struct BookDetailView: View {
             .fill(DesignToken.Color.borderLight)
           Capsule()
             .fill(DesignToken.Color.charcoal)
-            .frame(width: proxy.size.width * content.compatibility)
+            .frame(width: proxy.size.width * CGFloat(recommendation.score) / 100)
         }
       }
       .frame(height: DesignToken.Spacing.xs)
 
-      Text(content.compatibilityDescription)
-        .commendoTextStyle(
-          DesignToken.Typography.metadata,
-          color: DesignToken.Color.textSecondary
-        )
-        .fixedSize(horizontal: false, vertical: true)
+      VStack(alignment: .leading, spacing: DesignToken.Spacing.xs / 2) {
+        ForEach(recommendation.reasons, id: \.self) { reason in
+          Text(reason)
+            .commendoTextStyle(
+              DesignToken.Typography.metadata,
+              color: DesignToken.Color.textSecondary
+            )
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Text(recommendation.disclaimer)
+          .commendoTextStyle(
+            DesignToken.Typography.metadata,
+            color: DesignToken.Color.textSecondary
+          )
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
     .padding(DesignToken.Spacing.xl)
     .background(DesignToken.Color.charcoal03)
@@ -306,6 +334,17 @@ struct BookDetailView: View {
         .stroke(DesignToken.Color.borderLight, lineWidth: 1)
     }
     .padding(.horizontal, DesignToken.Spacing.xl - 4)
+  }
+
+  private func confidenceTitle(for confidence: RecommendationConfidence) -> String {
+    switch confidence {
+    case .low:
+      return "신뢰도 낮음"
+    case .medium:
+      return "신뢰도 보통"
+    case .high:
+      return "신뢰도 높음"
+    }
   }
 
   private var introductionSection: some View {
@@ -476,8 +515,6 @@ private struct RelatedBookItem: View {
 }
 
 private struct BookDetailContent {
-  let compatibility: CGFloat = 0.85
-  let compatibilityDescription = "평소 선호하시는 철학적 사유와 간결한 문체가 이 책의 핵심 요소와 85% 일치합니다."
   let keywords = ["명상", "인문"]
   let estimatedReadingTime = "약 3시간 20분"
   let descriptionParagraphs: [String]
