@@ -7,12 +7,15 @@
 
 import SunKit
 import SunKitSwiftUI
+import SwiftData
 import SwiftUI
 
 struct SearchView: View {
   let apiClient: CommendoAPIClient
   let onSelectBook: (BookSummary, RecommendationSourceContext) -> Void
 
+  @Environment(\.modelContext) private var modelContext
+  @Query(sort: \SearchRecentSearch.updatedAt, order: .reverse) private var storedRecentSearches: [SearchRecentSearch]
   @State private var searchValue = ""
   @State private var committedSearchValue = ""
   @FocusState private var isSearchFocused: Bool
@@ -22,12 +25,9 @@ struct SearchView: View {
     cacheOptions: QueryCacheOptions(staleTime: 60 * 10, gcTime: 60 * 30)
   ) private var searchResults: QueryState<BookSearchPage, BookSearchPage>
 
-  private let recentSearches = [
-    "Happiness Design",
-    "Mindful Architecture",
-    "Silent Rooms",
-    "Behavioral Spaces",
-  ]
+  private var recentSearches: [String] {
+    SearchRecentSearch.displayTexts(from: storedRecentSearches)
+  }
 
   private var committedSearchIsValid: Bool {
     !committedSearchValue.isEmpty
@@ -87,6 +87,8 @@ struct SearchView: View {
       return
     }
 
+    upsertRecentSearch(nextValue)
+
     if nextValue == committedSearchValue {
       searchResults.refetch()
     } else {
@@ -96,12 +98,13 @@ struct SearchView: View {
     searchValue = nextValue
     isSearchFocused = false
   }
-}
 
-enum SearchCommit {
-  static func normalizedValue(from value: String) -> String? {
-    let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
-    return (2...50).contains(normalized.count) ? normalized : nil
+  private func upsertRecentSearch(_ normalizedValue: String) {
+    guard (try? SearchRecentSearch.upsert(normalizedText: normalizedValue, in: modelContext)) != nil else {
+      return
+    }
+
+    try? modelContext.save()
   }
 }
 
