@@ -273,6 +273,111 @@ struct CommendoTests {
     #expect(matchingScore > unrelatedScore)
   }
 
+  @Test func recommendationRecencyUsesLatestMatchedSignalDate() {
+    let now = Date(timeIntervalSince1970: 1_767_225_600)
+    let ranker = CapturingRecommendationRanker(score: nil)
+    let service = RecommendationScoringService(ranker: ranker) { now }
+    let oldMatchingBookmark = BookBookmark(
+      book: BookSummary(
+        isbn: "9790000000001",
+        title: "오래된취향",
+        author: "관심저자",
+        publisher: "오래된출판",
+        publishedDate: "2025",
+        description: "오래된설명",
+        coverURL: nil
+      ),
+      rating: 5,
+      review: nil,
+      now: now.addingTimeInterval(TimeInterval(-90 * 86_400))
+    )
+    let recentUnrelatedBookmark = BookBookmark(
+      book: BookSummary(
+        isbn: "9790000000002",
+        title: "최신무관",
+        author: "다른저자",
+        publisher: "최신출판",
+        publishedDate: "2026",
+        description: "최신설명",
+        coverURL: nil
+      ),
+      rating: 5,
+      review: nil,
+      now: now
+    )
+    let candidate = BookSummary(
+      isbn: "9790000000003",
+      title: "후보도서",
+      author: "관심저자",
+      publisher: "후보출판",
+      publishedDate: "2026",
+      description: "후보설명",
+      coverURL: nil
+    )
+
+    _ = service.score(
+      book: candidate,
+      bookmarks: [oldMatchingBookmark, recentUnrelatedBookmark]
+    )
+
+    #expect(abs((ranker.inputs.last?.recencyScore ?? -1) - 0.5) < 0.0001)
+  }
+
+  @Test func bookFeatureSplitsSourceSignalsAndPreservesAggregate() {
+    let book = Self.recommendationBook()
+    let detailWithRelatedBooks = Self.recommendationDetail(
+      categoryName: "국내도서>인문>철학",
+      relatedBooks: [
+        RelatedBook(
+          title: "연관 도서",
+          authors: "연관 작가",
+          publisher: "연관 출판사",
+          publicationYear: "2025",
+          isbn13: "9790000000004",
+          coverURL: nil,
+          detailURL: nil
+        ),
+      ]
+    )
+
+    let detailRelatedFeature = BookFeature(book: book, detail: detailWithRelatedBooks)
+    let trendFeature = BookFeature(book: book, sourceContext: .trend)
+    let newArrivalFeature = BookFeature(book: book, sourceContext: .newArrival)
+    let relatedBookFeature = BookFeature(book: book, sourceContext: .relatedBook)
+    let searchResultFeature = BookFeature(book: book, sourceContext: .searchResult)
+
+    #expect(detailRelatedFeature.relatedBookSignal == RecommendationSourceContext.relatedBook.relatedBookSignal)
+    #expect(detailRelatedFeature.trendOrRelatedSignal == RecommendationSourceContext.relatedBook.aggregateSignal)
+    #expect(trendFeature.trendSignal == RecommendationSourceContext.trend.trendSignal)
+    #expect(trendFeature.trendOrRelatedSignal == RecommendationSourceContext.trend.aggregateSignal)
+    #expect(newArrivalFeature.newArrivalSignal == RecommendationSourceContext.newArrival.newArrivalSignal)
+    #expect(newArrivalFeature.trendOrRelatedSignal == RecommendationSourceContext.newArrival.aggregateSignal)
+    #expect(relatedBookFeature.relatedBookSignal == RecommendationSourceContext.relatedBook.relatedBookSignal)
+    #expect(relatedBookFeature.trendOrRelatedSignal == RecommendationSourceContext.relatedBook.aggregateSignal)
+    #expect(searchResultFeature.searchResultSignal == RecommendationSourceContext.searchResult.searchResultSignal)
+    #expect(searchResultFeature.trendOrRelatedSignal == RecommendationSourceContext.searchResult.aggregateSignal)
+  }
+
+  @Test func recommendationModelInputKeepsSourceAggregateFeature() {
+    let now = Date(timeIntervalSince1970: 1_767_225_600)
+    let ranker = CapturingRecommendationRanker(score: nil)
+    let service = RecommendationScoringService(ranker: ranker) { now }
+    let bookmark = BookBookmark(
+      book: Self.recommendationBook(title: "저장 도서", author: "저장 작가", description: "저장 설명"),
+      rating: 5,
+      review: nil,
+      now: now
+    )
+
+    _ = service.score(
+      book: Self.recommendationBook(title: "검색 도서", author: "검색 작가", description: "검색 설명"),
+      bookmarks: [bookmark],
+      sourceContext: .searchResult
+    )
+
+    #expect(ranker.inputs.last?.trendOrRelatedSignal == RecommendationSourceContext.searchResult.aggregateSignal)
+  }
+
   @Test func recommendationPenalizesOnlyLowRatedOverlap() {
     let now = Date(timeIntervalSince1970: 1_767_225_600)
     let service = RecommendationScoringService(ranker: nil) { now }
@@ -638,20 +743,24 @@ struct CommendoTests {
   private static func recommendationBook(
     title: String = "추천 후보",
     author: String = "작가",
+    publisher: String = "출판사",
     description: String = "인문 철학 사유"
   ) -> BookSummary {
     BookSummary(
       isbn: "9791234567890",
       title: title,
       author: author,
-      publisher: "출판사",
+      publisher: publisher,
       publishedDate: "2026",
       description: description,
       coverURL: nil
     )
   }
 
-  private static func recommendationDetail(categoryName: String) -> BookDetail {
+  private static func recommendationDetail(
+    categoryName: String,
+    relatedBooks: [RelatedBook] = []
+  ) -> BookDetail {
     BookDetail(
       title: "추천 후보",
       author: "후보 작가",
@@ -671,7 +780,7 @@ struct CommendoTests {
       itemPage: 0,
       tableOfContents: "",
       story: "",
-      relatedBooks: []
+      relatedBooks: relatedBooks
     )
   }
 }
@@ -681,5 +790,19 @@ private struct FixedRecommendationRanker: RecommendationRanker {
 
   func score(input: RecommendationModelInput) -> Double? {
     score
+  }
+}
+
+private final class CapturingRecommendationRanker: RecommendationRanker {
+  let score: Double?
+  private(set) var inputs: [RecommendationModelInput] = []
+
+  init(score: Double?) {
+    self.score = score
+  }
+
+  func score(input: RecommendationModelInput) -> Double? {
+    inputs.append(input)
+    return score
   }
 }

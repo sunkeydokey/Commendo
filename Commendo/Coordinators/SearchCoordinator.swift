@@ -9,7 +9,7 @@ import Observation
 import SwiftUI
 
 enum SearchRoute: Hashable {
-  case bookDetail(BookSummary)
+  case bookDetail(BookSummary, RecommendationSourceContext)
   case availability(BookSummary)
 }
 
@@ -18,12 +18,15 @@ enum SearchRoute: Hashable {
 final class SearchCoordinator {
   var path = NavigationPath()
 
-  func showBookDetail(_ book: BookSummary) {
-    path.append(SearchRoute.bookDetail(book))
+  func showBookDetail(
+    _ book: BookSummary,
+    sourceContext: RecommendationSourceContext = .none
+  ) {
+    path.append(SearchRoute.bookDetail(book, sourceContext))
   }
 
   func showRelatedBook(_ book: BookSummary) {
-    showBookDetail(book)
+    showBookDetail(book, sourceContext: .relatedBook)
   }
 
   func showAvailability(_ book: BookSummary) {
@@ -54,10 +57,11 @@ struct SearchCoordinatorView: View {
   @ViewBuilder
   private func destination(for route: SearchRoute) -> some View {
     switch route {
-    case .bookDetail(let book):
+    case .bookDetail(let book, let sourceContext):
       BookDetailView(
         apiClient: apiClient,
         book: book,
+        sourceContext: sourceContext,
         onSelectRelatedBook: coordinator.showRelatedBook
       )
     case .availability:

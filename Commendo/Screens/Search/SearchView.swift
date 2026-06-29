@@ -11,7 +11,7 @@ import SwiftUI
 
 struct SearchView: View {
   let apiClient: CommendoAPIClient
-  let onSelectBook: (BookSummary) -> Void
+  let onSelectBook: (BookSummary, RecommendationSourceContext) -> Void
 
   @State private var searchValue = ""
   @State private var committedSearchValue = ""
@@ -52,7 +52,7 @@ struct SearchView: View {
           isStale: searchResults.result?.isStale == true,
           error: searchResults.error,
           committedSearchValue: committedSearchValue,
-          onSelectBook: onSelectBook
+          onSelectBook: { book in onSelectBook(book, .searchResult) }
         )
 
         Button {

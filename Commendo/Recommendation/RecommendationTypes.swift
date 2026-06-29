@@ -15,12 +15,16 @@ struct BookFeature: Equatable {
   let categoryName: String
   let keywords: Set<String>
   let publicationYear: Int?
+  let trendSignal: Double
+  let newArrivalSignal: Double
+  let relatedBookSignal: Double
+  let searchResultSignal: Double
   let trendOrRelatedSignal: Double
 
   init(
     book: BookSummary,
     detail: BookDetail? = nil,
-    trendOrRelatedSignal: Double = 0
+    sourceContext: RecommendationSourceContext = .none
   ) {
     isbn = BookIdentifier.isbn13(detail?.isbn13 ?? book.isbn) ?? book.isbn
     title = detail?.title ?? book.title
@@ -28,7 +32,14 @@ struct BookFeature: Equatable {
     publisher = detail?.publisher ?? book.publisher
     categoryName = detail?.categoryName ?? ""
     publicationYear = Self.publicationYear(from: detail?.publishedDate ?? book.publishedDate)
-    self.trendOrRelatedSignal = trendOrRelatedSignal.clamped(to: 0...1)
+    trendSignal = sourceContext.trendSignal
+    newArrivalSignal = sourceContext.newArrivalSignal
+    relatedBookSignal = max(
+      sourceContext.relatedBookSignal,
+      detail?.relatedBooks.isEmpty == false ? RecommendationSourceContext.relatedBook.relatedBookSignal : 0
+    )
+    searchResultSignal = sourceContext.searchResultSignal
+    trendOrRelatedSignal = max(trendSignal, newArrivalSignal, relatedBookSignal, searchResultSignal)
 
     let keywordSource = [
       title,
@@ -74,23 +85,55 @@ struct BookFeature: Equatable {
   }
 }
 
+enum RecommendationSourceContext: Hashable {
+  case none
+  case trend
+  case newArrival
+  case relatedBook
+  case searchResult
+
+  var trendSignal: Double {
+    self == .trend ? 0.15 : 0
+  }
+
+  var newArrivalSignal: Double {
+    self == .newArrival ? 0.12 : 0
+  }
+
+  var relatedBookSignal: Double {
+    self == .relatedBook ? 0.20 : 0
+  }
+
+  var searchResultSignal: Double {
+    self == .searchResult ? 0.08 : 0
+  }
+
+  var aggregateSignal: Double {
+    max(trendSignal, newArrivalSignal, relatedBookSignal, searchResultSignal)
+  }
+}
+
 struct UserPreferenceProfile: Equatable {
   let bookmarkCount: Int
   let preferredAuthors: [String: Double]
   let preferredCategories: [String: Double]
   let preferredKeywords: [String: Double]
+  let preferredAuthorDates: [String: Date]
+  let preferredCategoryDates: [String: Date]
+  let preferredKeywordDates: [String: Date]
   let dislikedAuthors: Set<String>
   let dislikedCategories: Set<String>
   let dislikedKeywords: Set<String>
-  let latestBookmarkDate: Date?
 
   init(bookmarks: [BookBookmark], now: Date = Date()) {
     bookmarkCount = bookmarks.count
-    latestBookmarkDate = bookmarks.map(\.updatedAt).max()
 
     var authors: [String: Double] = [:]
     var categories: [String: Double] = [:]
     var keywords: [String: Double] = [:]
+    var authorDates: [String: Date] = [:]
+    var categoryDates: [String: Date] = [:]
+    var keywordDates: [String: Date] = [:]
     var dislikedAuthors: Set<String> = []
     var dislikedCategories: Set<String> = []
     var dislikedKeywords: Set<String> = []
@@ -111,14 +154,18 @@ struct UserPreferenceProfile: Equatable {
 
       if bookmark.rating >= 3 {
         authors[bookmark.author, default: 0] += weight
+        Self.record(bookmark.updatedAt, for: bookmark.author, in: &authorDates)
         if !categoryName.isEmpty {
           categories[categoryName, default: 0] += weight
+          Self.record(bookmark.updatedAt, for: categoryName, in: &categoryDates)
         }
         if !categoryRoot.isEmpty, categoryRoot != categoryName {
           categories[categoryRoot, default: 0] += weight * 0.8
+          Self.record(bookmark.updatedAt, for: categoryRoot, in: &categoryDates)
         }
         for keyword in keywordSet {
           keywords[keyword, default: 0] += weight
+          Self.record(bookmark.updatedAt, for: keyword, in: &keywordDates)
         }
       } else {
         dislikedAuthors.insert(bookmark.author)
@@ -135,6 +182,9 @@ struct UserPreferenceProfile: Equatable {
     preferredAuthors = authors
     preferredCategories = categories
     preferredKeywords = keywords
+    preferredAuthorDates = authorDates
+    preferredCategoryDates = categoryDates
+    preferredKeywordDates = keywordDates
     self.dislikedAuthors = dislikedAuthors
     self.dislikedCategories = dislikedCategories
     self.dislikedKeywords = dislikedKeywords
@@ -149,6 +199,18 @@ struct UserPreferenceProfile: Equatable {
     let ageInDays = max(0, now.timeIntervalSince(bookmark.updatedAt) / 86_400)
     let recencyWeight = max(0.25, 1 - min(ageInDays / 180, 0.75))
     return ratingWeight * recencyWeight
+  }
+
+  private static func record(_ date: Date, for key: String, in dates: inout [String: Date]) {
+    guard !key.isEmpty else {
+      return
+    }
+
+    if let current = dates[key], current >= date {
+      return
+    }
+
+    dates[key] = date
   }
 }
 
