@@ -71,12 +71,13 @@ struct RecommendationScoringService {
   func score(
     book: BookSummary,
     detail: BookDetail? = nil,
-    bookmarks: [BookBookmark]
+    bookmarks: [BookBookmark],
+    sourceContext: RecommendationSourceContext = .none
   ) -> RecommendationResult {
     let feature = BookFeature(
       book: book,
       detail: detail,
-      trendOrRelatedSignal: detail?.relatedBooks.isEmpty == false ? 0.2 : 0
+      sourceContext: sourceContext
     )
     let profile = UserPreferenceProfile(bookmarks: bookmarks, now: now())
     let input = modelInput(feature: feature, profile: profile)
@@ -110,7 +111,7 @@ struct RecommendationScoringService {
       preferredKeywords: profile.preferredKeywords
     )
     let ratingAffinity = max(authorAffinity, keywordSimilarity)
-    let recencyScore = recencyScore(profile: profile)
+    let recencyScore = recencyScore(feature: feature, profile: profile)
     let publicationAge = publicationAgeScore(year: feature.publicationYear)
 
     return RecommendationModelInput(
@@ -203,12 +204,41 @@ struct RecommendationScoringService {
     return (matchedWeight / denominator).clamped(to: 0...1)
   }
 
-  private func recencyScore(profile: UserPreferenceProfile) -> Double {
-    guard let latestBookmarkDate = profile.latestBookmarkDate else {
+  private func recencyScore(
+    feature: BookFeature,
+    profile: UserPreferenceProfile
+  ) -> Double {
+    let rootCategory = BookFeature.categoryRoot(from: feature.categoryName)
+    var matchedDates: [Date] = []
+
+    if profile.preferredAuthors[feature.author] != nil,
+       let date = profile.preferredAuthorDates[feature.author] {
+      matchedDates.append(date)
+    }
+
+    if !feature.categoryName.isEmpty,
+       profile.preferredCategories[feature.categoryName] != nil,
+       let date = profile.preferredCategoryDates[feature.categoryName] {
+      matchedDates.append(date)
+    }
+
+    if !rootCategory.isEmpty,
+       profile.preferredCategories[rootCategory] != nil,
+       let date = profile.preferredCategoryDates[rootCategory] {
+      matchedDates.append(date)
+    }
+
+    for keyword in feature.keywords where profile.preferredKeywords[keyword] != nil {
+      if let date = profile.preferredKeywordDates[keyword] {
+        matchedDates.append(date)
+      }
+    }
+
+    guard let latestMatchedDate = matchedDates.max() else {
       return 0
     }
 
-    let ageInDays = max(0, now().timeIntervalSince(latestBookmarkDate) / 86_400)
+    let ageInDays = max(0, now().timeIntervalSince(latestMatchedDate) / 86_400)
     return (1 - min(ageInDays / 180, 1)).clamped(to: 0...1)
   }
 

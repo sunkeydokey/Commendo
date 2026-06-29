@@ -12,7 +12,7 @@ import SwiftUI
 
 struct TrendView: View {
   let apiClient: CommendoAPIClient
-  let onSelectBook: (BookSummary) -> Void
+  let onSelectBook: (BookSummary, RecommendationSourceContext) -> Void
 
   @Environment(\.modelContext) private var modelContext
   @State private var selectedType: NewArrivalListType = .special
@@ -53,14 +53,14 @@ struct TrendView: View {
           isStale: newArrivals.result?.isStale == true,
           error: newArrivals.error,
           cachePolicy: selectedType == .special ? .hotNewArrivalCover : .newArrivalCover,
-          onSelectBook: onSelectBook
+          onSelectBook: { book in onSelectBook(book, .newArrival) }
         )
 
         MyBooksSection(
           bookmarks: myBooks,
           hasMore: hasMoreMyBooks,
           onLoadMore: loadMoreMyBooks,
-          onSelectBook: onSelectBook
+          onSelectBook: { book in onSelectBook(book, .none) }
         )
           .padding(.horizontal, 20)
 
@@ -70,7 +70,7 @@ struct TrendView: View {
           isFetching: popularLoans.isFetching,
           isStale: popularLoans.result?.isStale == true,
           error: popularLoans.error,
-          onSelectBook: onSelectBook
+          onSelectBook: { book in onSelectBook(book, .trend) }
         )
           .padding(.horizontal, 20)
           .padding(.bottom, 32)

@@ -13,6 +13,7 @@ import SwiftUI
 struct BookDetailView: View {
   let apiClient: CommendoAPIClient
   let book: BookSummary
+  let sourceContext: RecommendationSourceContext
   let onSelectRelatedBook: (BookSummary) -> Void
   let onFindAvailability: (() -> Void)?
 
@@ -33,11 +34,13 @@ struct BookDetailView: View {
   init(
     apiClient: CommendoAPIClient,
     book: BookSummary,
+    sourceContext: RecommendationSourceContext = .none,
     onSelectRelatedBook: @escaping (BookSummary) -> Void,
     onFindAvailability: (() -> Void)? = nil
   ) {
     self.apiClient = apiClient
     self.book = book
+    self.sourceContext = sourceContext
     self.onSelectRelatedBook = onSelectRelatedBook
     self.onFindAvailability = onFindAvailability
     let bookID = book.id
@@ -70,7 +73,8 @@ struct BookDetailView: View {
     recommendationScoringService.score(
       book: displayedBook,
       detail: bookDetail.data?.item,
-      bookmarks: allBookmarks
+      bookmarks: allBookmarks,
+      sourceContext: sourceContext
     )
   }
 
