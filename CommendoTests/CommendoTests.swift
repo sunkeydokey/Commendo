@@ -140,6 +140,7 @@ struct CommendoTests {
 
     let bookmark = BookBookmark(
       book: book,
+      categoryName: "국내도서>인문>철학",
       rating: 4.5,
       review: "  좋은 책  ",
       now: now
@@ -150,6 +151,7 @@ struct CommendoTests {
     #expect(bookmark.title == "저장 도서")
     #expect(bookmark.author == "작가")
     #expect(bookmark.publisher == "출판사")
+    #expect(bookmark.categoryName == "국내도서>인문>철학")
     #expect(bookmark.publishedDate == "2026")
     #expect(bookmark.bookDescription == "설명")
     #expect(bookmark.coverURLString == "https://example.com/book.jpg")
@@ -174,6 +176,179 @@ struct CommendoTests {
     #expect(BookBookmark.normalizedReview("  좋았어요  ") == "좋았어요")
     #expect(BookBookmark.normalizedReview(" \n\t ") == nil)
     #expect(BookBookmark.normalizedReview(nil) == nil)
+  }
+
+  @Test func recommendationFallsBackForEmptyBookmarks() {
+    let service = RecommendationScoringService(ranker: FixedRecommendationRanker(score: nil)) {
+      Date(timeIntervalSince1970: 1_767_225_600)
+    }
+
+    let result = service.score(book: Self.recommendationBook(), bookmarks: [])
+
+    #expect((0...100).contains(result.score))
+    #expect(result.confidence == .low)
+    #expect(result.reasons == ["북마크가 쌓이면 추천 정확도가 높아져요"])
+  }
+
+  @Test func bookFeatureExtractsKoreanKeywords() {
+    let keywords = BookFeature.keywords(from: "인문 철학 사유")
+
+    #expect(keywords.contains("인문"))
+    #expect(keywords.contains("철학"))
+    #expect(keywords.contains("사유"))
+  }
+
+  @Test func recommendationIncreasesForMatchingHighRatedBookmark() {
+    let now = Date(timeIntervalSince1970: 1_767_225_600)
+    let service = RecommendationScoringService(ranker: nil) { now }
+    let matchingBookmark = BookBookmark(
+      book: Self.recommendationBook(author: "관심 작가", description: "인문 철학 사유"),
+      rating: 5,
+      review: nil,
+      now: now
+    )
+    let unrelatedBookmark = BookBookmark(
+      book: Self.recommendationBook(title: "다른 책", author: "다른 작가", description: "요리 여행"),
+      rating: 5,
+      review: nil,
+      now: now
+    )
+
+    let matchingScore = service.score(
+      book: Self.recommendationBook(author: "관심 작가", description: "인문 철학 사유"),
+      bookmarks: [matchingBookmark]
+    ).score
+    let unrelatedScore = service.score(
+      book: Self.recommendationBook(author: "관심 작가", description: "인문 철학 사유"),
+      bookmarks: [unrelatedBookmark]
+    ).score
+
+    #expect(matchingScore > unrelatedScore)
+  }
+
+  @Test func recommendationUsesDetailCategoryAsLocalSignal() {
+    let now = Date(timeIntervalSince1970: 1_767_225_600)
+    let service = RecommendationScoringService(ranker: nil) { now }
+    let bookmark = BookBookmark(
+      book: Self.recommendationBook(author: "다른 작가", description: "철학 에세이"),
+      rating: 5,
+      review: nil,
+      now: now
+    )
+    let candidate = Self.recommendationBook(author: "후보 작가", description: "새로운 책")
+
+    let detailScore = service.score(
+      book: candidate,
+      detail: Self.recommendationDetail(categoryName: "인문 철학"),
+      bookmarks: [bookmark]
+    ).score
+    let summaryOnlyScore = service.score(book: candidate, bookmarks: [bookmark]).score
+
+    #expect(detailScore > summaryOnlyScore)
+  }
+
+  @Test func recommendationUsesBookmarkedCategoryPreference() {
+    let now = Date(timeIntervalSince1970: 1_767_225_600)
+    let service = RecommendationScoringService(ranker: nil) { now }
+    let bookmark = BookBookmark(
+      book: Self.recommendationBook(author: "다른 작가", description: "다른 설명"),
+      categoryName: "국내도서>인문>철학",
+      rating: 5,
+      review: nil,
+      now: now
+    )
+    let candidate = Self.recommendationBook(author: "후보 작가", description: "새로운 책")
+
+    let matchingScore = service.score(
+      book: candidate,
+      detail: Self.recommendationDetail(categoryName: "국내도서>인문>철학"),
+      bookmarks: [bookmark]
+    ).score
+    let unrelatedScore = service.score(
+      book: candidate,
+      detail: Self.recommendationDetail(categoryName: "국내도서>요리"),
+      bookmarks: [bookmark]
+    ).score
+
+    #expect(matchingScore > unrelatedScore)
+  }
+
+  @Test func recommendationPenalizesOnlyLowRatedOverlap() {
+    let now = Date(timeIntervalSince1970: 1_767_225_600)
+    let service = RecommendationScoringService(ranker: nil) { now }
+    let dislikedBookmark = BookBookmark(
+      book: Self.recommendationBook(author: "낮은 평점 작가", description: "불호 주제"),
+      rating: 1,
+      review: nil,
+      now: now
+    )
+
+    let result = service.score(
+      book: Self.recommendationBook(author: "낮은 평점 작가", description: "불호 주제"),
+      bookmarks: [dislikedBookmark]
+    )
+
+    #expect(result.score < 40)
+    #expect(result.reasons.contains("낮게 평가한 책과 겹치는 요소가 있어 점수를 낮췄어요"))
+  }
+
+  @Test func recommendationPenalizesLowRatedCategoryOverlap() {
+    let now = Date(timeIntervalSince1970: 1_767_225_600)
+    let service = RecommendationScoringService(ranker: nil) { now }
+    let dislikedBookmark = BookBookmark(
+      book: Self.recommendationBook(author: "다른 작가", description: "다른 설명"),
+      categoryName: "국내도서>공포",
+      rating: 1,
+      review: nil,
+      now: now
+    )
+
+    let result = service.score(
+      book: Self.recommendationBook(author: "후보 작가", description: "새로운 책"),
+      detail: Self.recommendationDetail(categoryName: "국내도서>공포"),
+      bookmarks: [dislikedBookmark]
+    )
+
+    #expect(result.score < 35)
+    #expect(result.reasons.contains("낮게 평가한 책과 겹치는 요소가 있어 점수를 낮췄어요"))
+  }
+
+  @Test func recommendationUsesInjectedModelScoreWhenAvailable() {
+    let now = Date(timeIntervalSince1970: 1_767_225_600)
+    let service = RecommendationScoringService(ranker: FixedRecommendationRanker(score: 1)) { now }
+    let bookmark = BookBookmark(
+      book: Self.recommendationBook(author: "관심 작가", description: "인문 철학"),
+      rating: 5,
+      review: nil,
+      now: now
+    )
+
+    let result = service.score(
+      book: Self.recommendationBook(author: "관심 작가", description: "인문 철학"),
+      bookmarks: [bookmark]
+    )
+
+    #expect(result.score > 80)
+  }
+
+  @Test func recommendationDoesNotLetOneBookmarkOverweightLowModelScore() {
+    let now = Date(timeIntervalSince1970: 1_767_225_600)
+    let service = RecommendationScoringService(ranker: FixedRecommendationRanker(score: 0)) { now }
+    let bookmark = BookBookmark(
+      book: Self.recommendationBook(author: "관심 작가", description: "인문 철학"),
+      categoryName: "국내도서>인문>철학",
+      rating: 5,
+      review: nil,
+      now: now
+    )
+
+    let result = service.score(
+      book: Self.recommendationBook(author: "관심 작가", description: "인문 철학"),
+      detail: Self.recommendationDetail(categoryName: "국내도서>인문>철학"),
+      bookmarks: [bookmark]
+    )
+
+    #expect(result.score > 50)
   }
 
   @MainActor
@@ -458,5 +633,53 @@ struct CommendoTests {
 
     #expect(response.item.summary.id == "9788936434120")
     #expect(response.item.relatedBooks.first?.detailURL == nil)
+  }
+
+  private static func recommendationBook(
+    title: String = "추천 후보",
+    author: String = "작가",
+    description: String = "인문 철학 사유"
+  ) -> BookSummary {
+    BookSummary(
+      isbn: "9791234567890",
+      title: title,
+      author: author,
+      publisher: "출판사",
+      publishedDate: "2026",
+      description: description,
+      coverURL: nil
+    )
+  }
+
+  private static func recommendationDetail(categoryName: String) -> BookDetail {
+    BookDetail(
+      title: "추천 후보",
+      author: "후보 작가",
+      publisher: "출판사",
+      publishedDate: "2026",
+      isbn: "9791234567890",
+      isbn13: "9791234567890",
+      coverURL: nil,
+      categoryId: 1,
+      categoryName: categoryName,
+      description: "새로운 책",
+      fullDescription: "새로운 책",
+      priceStandard: 0,
+      priceSales: 0,
+      link: nil,
+      customerReviewRank: 0,
+      itemPage: 0,
+      tableOfContents: "",
+      story: "",
+      relatedBooks: []
+    )
+  }
+}
+
+private struct FixedRecommendationRanker: RecommendationRanker {
+  let score: Double?
+
+  func score(input: RecommendationModelInput) -> Double? {
+    score
   }
 }
