@@ -24,7 +24,7 @@ struct CommendoApp: App {
     WindowGroup {
       if let apiClient {
         CommendoTabView(apiClient: apiClient, coordinator: tabCoordinator)
-          .modelContainer(for: BookBookmark.self)
+          .modelContainer(for: [BookBookmark.self, SearchRecentSearch.self])
           .queryClient(queryClient)
       } else {
         Text("앱 설정을 확인해 주세요.")

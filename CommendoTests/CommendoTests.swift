@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftData
 import SwiftUI
 import Testing
 @testable import Commendo
@@ -535,6 +536,53 @@ struct CommendoTests {
   }
 
   @MainActor
+  @Test func upsertsRecentSearchByNormalizedText() throws {
+    let context = try Self.makeInMemoryRecentSearchContext()
+    let createdAt = Date(timeIntervalSince1970: 100)
+    let updatedAt = Date(timeIntervalSince1970: 200)
+    let normalized = SearchCommit.normalizedValue(from: "  architecture  ")!
+
+    try SearchRecentSearch.upsert(normalizedText: normalized, in: context, now: createdAt)
+    try SearchRecentSearch.upsert(normalizedText: normalized, in: context, now: updatedAt)
+    try context.save()
+
+    let searches = try context.fetch(FetchDescriptor<SearchRecentSearch>())
+
+    #expect(searches.count == 1)
+    #expect(searches[0].normalizedText == "architecture")
+    #expect(searches[0].createdAt == createdAt)
+    #expect(searches[0].updatedAt == updatedAt)
+  }
+
+  @MainActor
+  @Test func displaysRecentSearchesNewestFirstWithFourItemCap() throws {
+    let context = try Self.makeInMemoryRecentSearchContext()
+    let terms = ["first", "second", "third", "fourth", "fifth"]
+
+    for (index, term) in terms.enumerated() {
+      try SearchRecentSearch.upsert(
+        normalizedText: term,
+        in: context,
+        now: Date(timeIntervalSince1970: TimeInterval(index + 1))
+      )
+    }
+
+    try SearchRecentSearch.upsert(
+      normalizedText: "second",
+      in: context,
+      now: Date(timeIntervalSince1970: 10)
+    )
+    try context.save()
+
+    let descriptor = FetchDescriptor<SearchRecentSearch>(
+      sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+    )
+    let searches = try context.fetch(descriptor)
+
+    #expect(SearchRecentSearch.displayTexts(from: searches) == ["second", "fifth", "fourth", "third"])
+  }
+
+  @MainActor
   @Test func decodesNewArrivalBookPage() throws {
     let json = """
     {
@@ -782,6 +830,12 @@ struct CommendoTests {
       story: "",
       relatedBooks: relatedBooks
     )
+  }
+
+  private static func makeInMemoryRecentSearchContext() throws -> ModelContext {
+    let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try ModelContainer(for: SearchRecentSearch.self, configurations: configuration)
+    return ModelContext(container)
   }
 }
 
