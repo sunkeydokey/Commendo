@@ -15,7 +15,6 @@ struct BookDetailView: View {
   let book: BookSummary
   let sourceContext: RecommendationSourceContext
   let onSelectRelatedBook: (BookSummary) -> Void
-  let onFindAvailability: (() -> Void)?
 
   @Environment(\.modelContext) private var modelContext
   @Query private var bookmarks: [BookBookmark]
@@ -35,14 +34,12 @@ struct BookDetailView: View {
     apiClient: CommendoAPIClient,
     book: BookSummary,
     sourceContext: RecommendationSourceContext = .none,
-    onSelectRelatedBook: @escaping (BookSummary) -> Void,
-    onFindAvailability: (() -> Void)? = nil
+    onSelectRelatedBook: @escaping (BookSummary) -> Void
   ) {
     self.apiClient = apiClient
     self.book = book
     self.sourceContext = sourceContext
     self.onSelectRelatedBook = onSelectRelatedBook
-    self.onFindAvailability = onFindAvailability
     let bookID = book.id
     _bookmarks = Query(
       filter: #Predicate<BookBookmark> { bookmark in
@@ -109,9 +106,6 @@ struct BookDetailView: View {
       }
     }
     .toolbar(.hidden, for: .tabBar)
-    .safeAreaInset(edge: .bottom, spacing: 0) {
-      floatingActionArea
-    }
     .commendoCustomAlert(isPresented: $isShowingBookmarkActions) {
       BookmarkActionAlertView(
         onEdit: openBookmarkEditorForExistingBookmark,
@@ -462,32 +456,6 @@ struct BookDetailView: View {
     }
   }
 
-  private var floatingActionArea: some View {
-    VStack(spacing: 0) {
-      Button {
-        onFindAvailability?()
-      } label: {
-        PrimaryActionLabel(title: "소장 도서관 찾기", systemImage: "building.columns")
-      }
-      .buttonStyle(.plain)
-      .allowsHitTesting(onFindAvailability != nil)
-      .accessibilityHint("도서관 찾기 화면은 준비 중입니다")
-    }
-    .padding(.horizontal, DesignToken.Spacing.xl - 4)
-    .padding(.top, DesignToken.Spacing.sectionSmall - 8)
-    .padding(.bottom, DesignToken.Spacing.xl)
-    .background {
-      LinearGradient(
-        colors: [
-          DesignToken.Color.backgroundCream.opacity(0),
-          DesignToken.Color.backgroundCream.opacity(0.9),
-          DesignToken.Color.backgroundCream,
-        ],
-        startPoint: .top,
-        endPoint: .bottom
-      )
-    }
-  }
 }
 
 private struct RelatedBookItem: View {
