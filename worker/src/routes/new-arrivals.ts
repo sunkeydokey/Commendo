@@ -1,5 +1,6 @@
 import type { Env } from "../env";
 import { json, parsePositiveInteger, RESPONSE_MAX_AGE_SECONDS } from "../http";
+import { cleanupIncompleteSnapshots } from "../snapshot-cleanup";
 
 type NewArrivalType = "all" | "special";
 
@@ -153,6 +154,7 @@ export async function refreshNewArrivalSnapshots(env: Env): Promise<void> {
 }
 
 async function getOrCreateSnapshot(env: Env, type: NewArrivalType): Promise<NewArrivalSnapshotRow | null> {
+  await cleanupIncompleteSnapshots(env);
   const snapshot = await getLatestSnapshot(env.DB, type);
 
   if (snapshot) {

@@ -1,5 +1,6 @@
 import type { Env } from "../env";
 import { json, parsePageQuery, RESPONSE_MAX_AGE_SECONDS } from "../http";
+import { cleanupIncompleteSnapshots } from "../snapshot-cleanup";
 
 interface AladinListResponse {
   item?: AladinBookItem[];
@@ -142,6 +143,7 @@ export async function refreshBestsellerSnapshot(env: Env): Promise<void> {
 }
 
 async function getOrCreateSnapshot(env: Env): Promise<BestsellerSnapshotRow | null> {
+  await cleanupIncompleteSnapshots(env);
   const snapshot = await getLatestSnapshot(env.DB);
 
   if (snapshot && snapshot.period_start === snapshot.period_end) {

@@ -1,5 +1,6 @@
 import type { Env } from "./env";
 import { routeRequest } from "./router";
+import { cleanupIncompleteSnapshots } from "./snapshot-cleanup";
 import { refreshNewArrivalSnapshots } from "./routes/new-arrivals";
 import { refreshBestsellerSnapshot } from "./routes/bestsellers";
 
@@ -12,9 +13,11 @@ export default {
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     void controller;
-    ctx.waitUntil(Promise.all([
-      refreshNewArrivalSnapshots(env),
-      refreshBestsellerSnapshot(env)
-    ]).then(() => undefined));
+    ctx.waitUntil(cleanupIncompleteSnapshots(env)
+      .then(() => Promise.all([
+        refreshNewArrivalSnapshots(env),
+        refreshBestsellerSnapshot(env)
+      ]))
+      .then(() => undefined));
   }
 };
