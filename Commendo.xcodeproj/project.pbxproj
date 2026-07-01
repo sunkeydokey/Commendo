@@ -136,6 +136,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = A383DEB32FD7038900AA79E7 /* Build configuration list for PBXNativeTarget "Commendo" */;
 			buildPhases = (
+				A383DEC32FD8A00000AA79E7 /* Validate Release API Base URL */,
 				A383DE8C2FD7038700AA79E7 /* Sources */,
 				A383DE8D2FD7038700AA79E7 /* Frameworks */,
 				A383DE8E2FD7038700AA79E7 /* Resources */,
@@ -275,6 +276,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A383DEC32FD8A00000AA79E7 /* Validate Release API Base URL */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Validate Release API Base URL";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"$CONFIGURATION\" != \"Release\" ]; then\n    exit 0\nfi\n\napi_base_url=${COMMENDO_API_BASE_URL:-}\ncase \"$api_base_url\" in\n    \"\"|\\$\\(*)\n        echo \"error: COMMENDO_API_BASE_URL must be set for Release builds.\" >&2\n        exit 1\n        ;;\nesac\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A383DE8C2FD7038700AA79E7 /* Sources */ = {
