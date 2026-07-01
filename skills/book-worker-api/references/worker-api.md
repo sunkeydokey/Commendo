@@ -12,12 +12,21 @@
 
 ## Validation
 
-- `q`: trim, 2-50 chars.
-- `isbn`: 10 or 13 numeric chars.
-- `page`: integer >= 1.
-- `pageSize`: max 20.
-- `region`: allowlisted region code.
-- Unknown params: ignore or return 400.
+- Invalid query parameters return `400` with `{ "error": "<stable_error_code>" }`.
+- Validation happens before provider fetches, Worker Cache access, or D1 access.
+- Unknown query parameters are ignored.
+
+Current route parameters:
+
+| Parameter | Routes | Rule | Error code |
+| :-- | :-- | :-- | :-- |
+| `q` | `/books/search` | Trimmed length 2-50 chars. | `invalid_query` |
+| `isbn` | `/books/detail` | Trimmed 10 or 13 numeric chars. | `invalid_isbn` |
+| `page` | `/books/search`, `/books/trending`, `/books/new-arrivals` | Positive safe integer, default `1`. | `invalid_page` |
+| `pageSize` | `/books/search`, `/books/trending`, `/books/new-arrivals` | Positive safe integer, default `20`, max `20`. | `invalid_page_size` |
+| `type` | `/books/new-arrivals` | `all` or `special`, default `all`. | `invalid_type` |
+
+Future availability routes should use allowlisted `region` and `libCode` values before calling Data4Library.
 
 ## Shared Cache
 

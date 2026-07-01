@@ -244,6 +244,57 @@ test("GET /books/new-arrivals lazily snapshots normalized provider books and key
   ]);
 });
 
+test("GET /books/search rejects invalid query parameters before side effects", async () => {
+  const longQuery = "a".repeat(51);
+  const cases = [
+    ["/books/search", "invalid_query"],
+    ["/books/search?q=%20a%20", "invalid_query"],
+    [`/books/search?q=${longQuery}`, "invalid_query"],
+    ["/books/search?q=han&page=0", "invalid_page"],
+    ["/books/search?q=han&pageSize=21", "invalid_page_size"]
+  ] as const;
+
+  for (const [path, expectedError] of cases) {
+    await assertInvalidRequest(path, expectedError);
+  }
+});
+
+test("GET /books/trending rejects invalid pagination before side effects", async () => {
+  const cases = [
+    ["/books/trending?page=0", "invalid_page"],
+    ["/books/trending?pageSize=21", "invalid_page_size"]
+  ] as const;
+
+  for (const [path, expectedError] of cases) {
+    await assertInvalidRequest(path, expectedError);
+  }
+});
+
+test("GET /books/new-arrivals rejects invalid parameters before side effects", async () => {
+  const cases = [
+    ["/books/new-arrivals?type=foo", "invalid_type"],
+    ["/books/new-arrivals?page=0", "invalid_page"],
+    ["/books/new-arrivals?pageSize=21", "invalid_page_size"]
+  ] as const;
+
+  for (const [path, expectedError] of cases) {
+    await assertInvalidRequest(path, expectedError);
+  }
+});
+
+test("GET /books/detail rejects invalid ISBN before side effects", async () => {
+  const cases = [
+    ["/books/detail", "invalid_isbn"],
+    ["/books/detail?isbn=abc", "invalid_isbn"],
+    ["/books/detail?isbn=12345678901", "invalid_isbn"],
+    ["/books/detail?isbn=123456789012", "invalid_isbn"]
+  ] as const;
+
+  for (const [path, expectedError] of cases) {
+    await assertInvalidRequest(path, expectedError);
+  }
+});
+
 test("unimplemented removed routes return 404", async () => {
   const routes = [
     ["GET", "/books/availability"],
@@ -263,6 +314,25 @@ test("unimplemented removed routes return 404", async () => {
     assert.equal(response.status, 404, `${method} ${pathname}`);
   }
 });
+
+async function assertInvalidRequest(path: string, expectedError: string): Promise<void> {
+  const cache = installMockCache();
+  const fetchCalls = installMockFetch({});
+  const ctx = new MockExecutionContext();
+
+  const response = await routeRequest(
+    new Request(`https://commendo.example${path}`),
+    makeEnv(new NoAccessD1Database() as unknown as D1Database),
+    ctx as unknown as ExecutionContext
+  );
+  await ctx.drain();
+
+  assert.equal(response.status, 400, path);
+  assert.deepEqual(await response.json(), { error: expectedError }, path);
+  assert.equal(fetchCalls.length, 0, path);
+  assert.equal(cache.matches.length, 0, path);
+  assert.equal(cache.puts.length, 0, path);
+}
 
 function makeEnv(db: D1Database = new FakeD1Database() as unknown as D1Database): Env {
   return {
@@ -318,6 +388,16 @@ class MockExecutionContext {
 
   async drain(): Promise<void> {
     await Promise.all(this.promises);
+  }
+}
+
+class NoAccessD1Database {
+  prepare(): never {
+    assert.fail("D1 should not be accessed for invalid requests");
+  }
+
+  batch(): never {
+    assert.fail("D1 should not be accessed for invalid requests");
   }
 }
 
