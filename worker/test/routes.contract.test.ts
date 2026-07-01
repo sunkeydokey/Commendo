@@ -244,6 +244,26 @@ test("GET /books/new-arrivals lazily snapshots normalized provider books and key
   ]);
 });
 
+test("unimplemented removed routes return 404", async () => {
+  const routes = [
+    ["GET", "/books/availability"],
+    ["GET", "/libraries/book-exist"],
+    ["POST", "/notifications/register"],
+    ["POST", "/notifications/unregister"],
+    ["POST", "/notifications/preferences"]
+  ] as const;
+
+  for (const [method, pathname] of routes) {
+    const response = await routeRequest(
+      new Request(`https://commendo.example${pathname}`, { method }),
+      makeEnv(),
+      new MockExecutionContext() as unknown as ExecutionContext
+    );
+
+    assert.equal(response.status, 404, `${method} ${pathname}`);
+  }
+});
+
 function makeEnv(db: D1Database = new FakeD1Database() as unknown as D1Database): Env {
   return {
     ALADIN_API_BASE_URL: "https://provider.example/api/",

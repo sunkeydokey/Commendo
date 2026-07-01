@@ -10,15 +10,9 @@ const routes = new Map<string, Set<string>>([
     "/books/new-arrivals",
     "/books/trending",
     "/books/search",
-    "/books/detail",
-    "/books/availability",
-    "/libraries/book-exist"
+    "/books/detail"
   ])],
-  ["POST", new Set([
-    "/notifications/register",
-    "/notifications/unregister",
-    "/notifications/preferences"
-  ])]
+  ["POST", new Set()]
 ]);
 
 export async function routeRequest(
