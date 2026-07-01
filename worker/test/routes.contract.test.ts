@@ -152,6 +152,98 @@ test("GET /books/trending lazily snapshots normalized provider books and keys ca
   assert.equal(cache.puts[0].request.url, cache.matches[0].url);
 });
 
+test("GET /books/new-arrivals lazily snapshots normalized provider books and keys cache by snapshot", async () => {
+  const cache = installMockCache();
+  const fetchCalls = installMockFetch({
+    item: [{
+      title: "New Arrival Result",
+      author: "Arrival Author",
+      publisher: "Arrival Publisher",
+      pubDate: "2026-06-29",
+      isbn: "8960000001",
+      isbn13: "9791190000003",
+      cover: "http://image.example/new-arrival.jpg",
+      categoryName: "국내도서>소설",
+      description: "Arrival description",
+      priceStandard: 18000,
+      priceSales: 16200,
+      link: "http://book.example/new-arrival"
+    }]
+  });
+  const db = new FakeD1Database(84);
+  const ctx = new MockExecutionContext();
+
+  const response = await routeRequest(
+    new Request("https://commendo.example/books/new-arrivals?type=all&page=1&pageSize=1"),
+    makeEnv(db as unknown as D1Database),
+    ctx as unknown as ExecutionContext
+  );
+  await ctx.drain();
+
+  assert.equal(response.status, 200);
+  const body = await response.json() as {
+    type: string;
+    page: number;
+    pageSize: number;
+    totalResults: number;
+    snapshotDate: string;
+    fetchedAt: string;
+    items: Array<{
+      title: string;
+      author: string;
+      publisher: string;
+      publishedDate: string;
+      isbn: string;
+      isbn13: string;
+      coverURL: string;
+      categoryName: string;
+      description: string;
+      priceStandard: number;
+      priceSales: number;
+      link: string;
+    }>;
+  };
+
+  assert.equal(body.type, "all");
+  assert.equal(body.page, 1);
+  assert.equal(body.pageSize, 1);
+  assert.equal(body.totalResults, 1);
+  assert.equal(body.snapshotDate, db.newArrivalSnapshots[0].snapshot_date);
+  assert.equal(body.fetchedAt, db.newArrivalSnapshots[0].fetched_at);
+  assert.deepEqual(body.items[0], {
+    title: "New Arrival Result",
+    author: "Arrival Author",
+    publisher: "Arrival Publisher",
+    publishedDate: "2026-06-29",
+    isbn: "8960000001",
+    isbn13: "9791190000003",
+    coverURL: "http://image.example/new-arrival.jpg",
+    categoryName: "국내도서>소설",
+    description: "Arrival description",
+    priceStandard: 18000,
+    priceSales: 16200,
+    link: "http://book.example/new-arrival"
+  });
+
+  assert.equal(fetchCalls.length, 1);
+  assert.equal(fetchCalls[0].pathname, "/api/ItemList.aspx");
+  assert.equal(fetchCalls[0].searchParams.get("QueryType"), "ItemNewAll");
+  assert.equal(fetchCalls[0].searchParams.get("MaxResults"), "50");
+
+  assert.equal(cache.matches.length, 1);
+  assert.equal(
+    cache.matches[0].url,
+    "https://commendo.example/books/new-arrivals?snapshot=84&type=all&page=1&pageSize=1"
+  );
+  assert.equal(cache.puts.length, 1);
+  assert.equal(cache.puts[0].request.url, cache.matches[0].url);
+  assert.deepEqual(db.writes, [
+    "insert:new_arrival_snapshots:84",
+    "insert:new_arrival_books:84:1",
+    "update:new_arrival_snapshots:84"
+  ]);
+});
+
 function makeEnv(db: D1Database = new FakeD1Database() as unknown as D1Database): Env {
   return {
     ALADIN_API_BASE_URL: "https://provider.example/api/",
@@ -219,6 +311,15 @@ interface SnapshotRow {
   status: string;
 }
 
+interface NewArrivalSnapshotRow {
+  id: number;
+  list_type: string;
+  snapshot_date: string;
+  fetched_at: string;
+  item_count: number;
+  status: string;
+}
+
 interface BookRow {
   snapshot_id: number;
   rank: number;
@@ -231,9 +332,29 @@ interface BookRow {
   detail_url: string;
 }
 
+interface NewArrivalBookRow {
+  snapshot_id: number;
+  rank: number;
+  title: string;
+  author: string;
+  publisher: string;
+  published_date: string;
+  isbn: string;
+  isbn13: string;
+  cover_url: string;
+  category_name: string;
+  description: string;
+  price_standard: number;
+  price_sales: number;
+  link: string;
+}
+
 class FakeD1Database {
   readonly snapshots: SnapshotRow[] = [];
   readonly books: BookRow[] = [];
+  readonly newArrivalSnapshots: NewArrivalSnapshotRow[] = [];
+  readonly newArrivalBooks: NewArrivalBookRow[] = [];
+  readonly writes: string[] = [];
 
   constructor(private readonly firstSnapshotID = 1) {}
 
@@ -247,6 +368,10 @@ class FakeD1Database {
 
   nextSnapshotID(): number {
     return this.firstSnapshotID + this.snapshots.length;
+  }
+
+  nextNewArrivalSnapshotID(): number {
+    return this.firstSnapshotID + this.newArrivalSnapshots.length;
   }
 }
 
@@ -268,6 +393,14 @@ class FakeD1Statement {
       return (this.db.snapshots.find((snapshot) => snapshot.status === "complete") ?? null) as T | null;
     }
 
+    if (this.query.includes("SELECT id, snapshot_date, fetched_at, item_count")) {
+      const [type] = this.values;
+      const snapshot = this.db.newArrivalSnapshots.find((candidate) =>
+        candidate.list_type === String(type) && candidate.status === "complete"
+      ) ?? null;
+      return snapshot as T | null;
+    }
+
     if (this.query.includes("INSERT INTO bestseller_snapshots")) {
       const [periodStart, periodEnd, fetchedAt, itemCount, contentHash] = this.values;
       const snapshot = {
@@ -283,6 +416,21 @@ class FakeD1Statement {
       return { id: snapshot.id } as T;
     }
 
+    if (this.query.includes("INSERT INTO new_arrival_snapshots")) {
+      const [listType, snapshotDate, fetchedAt, itemCount] = this.values;
+      const snapshot = {
+        id: this.db.nextNewArrivalSnapshotID(),
+        list_type: String(listType),
+        snapshot_date: String(snapshotDate),
+        fetched_at: String(fetchedAt),
+        item_count: Number(itemCount),
+        status: "pending"
+      };
+      this.db.newArrivalSnapshots.push(snapshot);
+      this.db.writes.push(`insert:new_arrival_snapshots:${snapshot.id}`);
+      return { id: snapshot.id } as T;
+    }
+
     return null;
   }
 
@@ -294,6 +442,16 @@ class FakeD1Statement {
         .sort((left, right) => left.rank - right.rank)
         .slice(offset, offset + limit)
         .map(({ snapshot_id: _snapshotID, ...book }) => book as T);
+      return { results };
+    }
+
+    if (this.query.includes("FROM new_arrival_books")) {
+      const [snapshotID, limit, offset] = this.values.map(Number);
+      const results = this.db.newArrivalBooks
+        .filter((book) => book.snapshot_id === snapshotID)
+        .sort((left, right) => left.rank - right.rank)
+        .slice(offset, offset + limit)
+        .map(({ snapshot_id: _snapshotID, rank: _rank, ...book }) => book as T);
       return { results };
     }
 
@@ -327,12 +485,58 @@ class FakeD1Statement {
       });
     }
 
+    if (this.query.includes("INSERT INTO new_arrival_books")) {
+      const [
+        snapshotID,
+        rank,
+        title,
+        author,
+        publisher,
+        publishedDate,
+        isbn,
+        isbn13,
+        coverURL,
+        categoryName,
+        description,
+        priceStandard,
+        priceSales,
+        link
+      ] = this.values;
+
+      this.db.newArrivalBooks.push({
+        snapshot_id: Number(snapshotID),
+        rank: Number(rank),
+        title: String(title),
+        author: String(author),
+        publisher: String(publisher),
+        published_date: String(publishedDate),
+        isbn: String(isbn),
+        isbn13: String(isbn13),
+        cover_url: String(coverURL),
+        category_name: String(categoryName),
+        description: String(description),
+        price_standard: Number(priceStandard),
+        price_sales: Number(priceSales),
+        link: String(link)
+      });
+      this.db.writes.push(`insert:new_arrival_books:${Number(snapshotID)}:${Number(rank)}`);
+    }
+
     if (this.query.includes("UPDATE bestseller_snapshots")) {
       const [snapshotID] = this.values.map(Number);
       const snapshot = this.db.snapshots.find((candidate) => candidate.id === snapshotID);
       if (snapshot) {
         snapshot.status = "complete";
       }
+    }
+
+    if (this.query.includes("UPDATE new_arrival_snapshots")) {
+      const [snapshotID] = this.values.map(Number);
+      const snapshot = this.db.newArrivalSnapshots.find((candidate) => candidate.id === snapshotID);
+      if (snapshot) {
+        snapshot.status = "complete";
+      }
+      this.db.writes.push(`update:new_arrival_snapshots:${snapshotID}`);
     }
 
     return { success: true };
