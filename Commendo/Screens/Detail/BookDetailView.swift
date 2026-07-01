@@ -86,7 +86,6 @@ struct BookDetailView: View {
         heroSection
         compatibilitySection
         introductionSection
-        insightSection
         relatedBooksSection
       }
       .padding(.bottom, DesignToken.Spacing.xl)
@@ -365,70 +364,6 @@ struct BookDetailView: View {
     .padding(.vertical, DesignToken.Spacing.sectionSmall - 8)
   }
 
-  private var insightSection: some View {
-    VStack(alignment: .leading, spacing: DesignToken.Spacing.lg) {
-      Text("Library Insight")
-        .commendoTextStyle(DesignToken.Typography.detailSectionTitle)
-
-      HStack(spacing: DesignToken.Spacing.lg) {
-        insightCard(title: "주요 키워드") {
-          HStack(spacing: DesignToken.Spacing.xs / 2) {
-            ForEach(content.keywords, id: \.self) { keyword in
-              Text(keyword)
-                .commendoTextStyle(DesignToken.Typography.keyword)
-                .padding(.horizontal, DesignToken.Spacing.xs)
-                .padding(.vertical, DesignToken.Spacing.xs / 2)
-                .background(DesignToken.Color.backgroundCream)
-                .clipShape(Capsule())
-                .overlay {
-                  Capsule()
-                    .stroke(DesignToken.Color.borderLight, lineWidth: 1)
-                }
-            }
-          }
-        }
-
-        insightCard(title: "완독 예상 시간") {
-          Text(content.estimatedReadingTime)
-            .commendoTextStyle(DesignToken.Typography.body)
-            .lineLimit(1)
-        }
-      }
-    }
-    .padding(.top, DesignToken.Spacing.xl)
-    .overlay(alignment: .top) {
-      Rectangle()
-        .fill(DesignToken.Color.borderLight)
-        .frame(height: 1)
-    }
-    .padding(.horizontal, DesignToken.Spacing.xl - 4)
-  }
-
-  private func insightCard<Content: View>(
-    title: String,
-    @ViewBuilder content: () -> Content
-  ) -> some View {
-    VStack(alignment: .leading, spacing: DesignToken.Spacing.xs / 2) {
-      Text(title)
-        .commendoTextStyle(
-          DesignToken.Typography.metadata,
-          color: DesignToken.Color.textSecondary
-        )
-
-      content()
-
-      Spacer(minLength: 0)
-    }
-    .frame(maxWidth: .infinity, minHeight: 56, alignment: .topLeading)
-    .padding(DesignToken.Spacing.lg)
-    .background(DesignToken.Color.textOnDark)
-    .clipShape(RoundedRectangle(cornerRadius: DesignToken.Radius.comfortable))
-    .overlay {
-      RoundedRectangle(cornerRadius: DesignToken.Radius.comfortable)
-        .stroke(DesignToken.Color.borderLight, lineWidth: 1)
-    }
-  }
-
   @ViewBuilder
   private var relatedBooksSection: some View {
     if !relatedBooks.isEmpty {
@@ -487,8 +422,6 @@ private struct RelatedBookItem: View {
 }
 
 private struct BookDetailContent {
-  let keywords = ["명상", "인문"]
-  let estimatedReadingTime = "약 3시간 20분"
   let descriptionParagraphs: [String]
 
   init(book: BookSummary) {

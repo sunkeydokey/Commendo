@@ -54,14 +54,6 @@ struct SearchView: View {
           committedSearchValue: committedSearchValue,
           onSelectBook: { book in onSelectBook(book, .searchResult) }
         )
-
-        Button {
-        } label: {
-          PrimaryActionLabel(title: "Browse Curated Collections", systemImage: "books.vertical")
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 20)
-        .padding(.bottom, 32)
       }
     }
     .scrollContentBackground(.hidden)
