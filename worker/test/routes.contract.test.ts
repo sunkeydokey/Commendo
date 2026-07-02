@@ -244,6 +244,224 @@ test("GET /books/new-arrivals lazily snapshots normalized provider books and key
   ]);
 });
 
+test("existing GET book routes ignore unknown query parameters in cache keys", async () => {
+  {
+    const cache = installMockCache();
+    const fetchCalls = installMockFetch({ totalResults: 0, item: [] });
+    const ctx = new MockExecutionContext();
+
+    const response = await routeRequest(
+      new Request("https://commendo.example/books/search?q=han&page=2&pageSize=3&unknown=value"),
+      makeEnv(),
+      ctx as unknown as ExecutionContext
+    );
+    await ctx.drain();
+
+    assert.equal(response.status, 200);
+    assert.equal(fetchCalls.length, 1);
+    assert.equal(fetchCalls[0].searchParams.has("unknown"), false);
+    const expectedHash = await sha256("han");
+    assert.equal(cache.matches.length, 1);
+    assert.equal(cache.matches[0].url, `https://commendo.example/books/search?query=${expectedHash}&page=2&pageSize=3`);
+    assert.equal(cache.puts.length, 1);
+    assert.equal(cache.puts[0].request.url, cache.matches[0].url);
+  }
+
+  {
+    const cache = installMockCache();
+    const fetchCalls = installMockFetch({
+      item: [{
+        title: "Trending Result",
+        author: "Trend Author",
+        publisher: "Trend Publisher",
+        pubdate: "2023-11-01",
+        isbn13: "9791190000002"
+      }]
+    });
+    const ctx = new MockExecutionContext();
+
+    const response = await routeRequest(
+      new Request("https://commendo.example/books/trending?page=1&pageSize=1&unknown=value"),
+      makeEnv(new FakeD1Database(126) as unknown as D1Database),
+      ctx as unknown as ExecutionContext
+    );
+    await ctx.drain();
+
+    assert.equal(response.status, 200);
+    assert.equal(fetchCalls.length, 1);
+    assert.equal(fetchCalls[0].searchParams.has("unknown"), false);
+    assert.equal(cache.matches.length, 1);
+    assert.equal(cache.matches[0].url, "https://commendo.example/books/trending?snapshot=126&page=1&pageSize=1");
+    assert.equal(cache.puts.length, 1);
+    assert.equal(cache.puts[0].request.url, cache.matches[0].url);
+  }
+
+  {
+    const cache = installMockCache();
+    const fetchCalls = installMockFetch({
+      item: [{
+        title: "New Arrival Result",
+        author: "Arrival Author",
+        publisher: "Arrival Publisher",
+        pubDate: "2026-06-29",
+        isbn13: "9791190000003"
+      }]
+    });
+    const ctx = new MockExecutionContext();
+
+    const response = await routeRequest(
+      new Request("https://commendo.example/books/new-arrivals?type=special&page=1&pageSize=1&unknown=value"),
+      makeEnv(new FakeD1Database(168) as unknown as D1Database),
+      ctx as unknown as ExecutionContext
+    );
+    await ctx.drain();
+
+    assert.equal(response.status, 200);
+    assert.equal(fetchCalls.length, 1);
+    assert.equal(fetchCalls[0].searchParams.has("unknown"), false);
+    assert.equal(cache.matches.length, 1);
+    assert.equal(
+      cache.matches[0].url,
+      "https://commendo.example/books/new-arrivals?snapshot=168&type=special&page=1&pageSize=1"
+    );
+    assert.equal(cache.puts.length, 1);
+    assert.equal(cache.puts[0].request.url, cache.matches[0].url);
+  }
+});
+
+test("GET /books/detail returns normalized detail and keys cache by ISBN", async () => {
+  const cache = installMockCache();
+  const fetchCalls = installMockFetchByPath({
+    "/api/ItemLookUp.aspx": {
+      item: [{
+        title: "Detail Result",
+        author: "Detail Author",
+        publisher: "Detail Publisher",
+        pubDate: "2025-02-14",
+        isbn: "1190000000",
+        isbn13: "9791190000004",
+        cover: "http://image.example/detail.jpg",
+        categoryId: 123,
+        categoryName: "국내도서>컴퓨터",
+        description: "Short detail",
+        fullDescription: "Full detail",
+        priceStandard: 21000,
+        priceSales: 18900,
+        link: "http://book.example/detail",
+        customerReviewRank: 9,
+        subInfo: {
+          itemPage: 321,
+          toc: "Contents",
+          story: "Story"
+        }
+      }]
+    },
+    "/api/recommandList": {
+      response: {
+        docs: [{
+          book: {
+            bookname: "Related Result",
+            authors: "Related Author",
+            publisher: "Related Publisher",
+            publication_year: "2024",
+            isbn13: "9791190000005",
+            bookImageURL: "http://image.example/related.jpg",
+            bookDtlUrl: "http://book.example/related"
+          }
+        }]
+      }
+    }
+  });
+  const ctx = new MockExecutionContext();
+
+  const response = await routeRequest(
+    new Request("https://commendo.example/books/detail?isbn=9791190000004&unknown=value"),
+    makeEnv(),
+    ctx as unknown as ExecutionContext
+  );
+  await ctx.drain();
+
+  assert.equal(response.status, 200);
+  const body = await response.json() as {
+    item: {
+      title: string;
+      author: string;
+      publisher: string;
+      publishedDate: string;
+      isbn: string;
+      isbn13: string;
+      coverURL: string;
+      categoryId: number;
+      categoryName: string;
+      description: string;
+      fullDescription: string;
+      priceStandard: number;
+      priceSales: number;
+      link: string;
+      customerReviewRank: number;
+      itemPage: number;
+      tableOfContents: string;
+      story: string;
+      relatedBooks: Array<{
+        title: string;
+        authors: string;
+        publisher: string;
+        publicationYear: string;
+        isbn13: string;
+        coverURL: string | null;
+        detailURL: string | null;
+      }>;
+    };
+  };
+
+  assert.deepEqual(body.item, {
+    title: "Detail Result",
+    author: "Detail Author",
+    publisher: "Detail Publisher",
+    publishedDate: "2025-02-14",
+    isbn: "1190000000",
+    isbn13: "9791190000004",
+    coverURL: "http://image.example/detail.jpg",
+    categoryId: 123,
+    categoryName: "국내도서>컴퓨터",
+    description: "Short detail",
+    fullDescription: "Full detail",
+    priceStandard: 21000,
+    priceSales: 18900,
+    link: "http://book.example/detail",
+    customerReviewRank: 9,
+    itemPage: 321,
+    tableOfContents: "Contents",
+    story: "Story",
+    relatedBooks: [{
+      title: "Related Result",
+      authors: "Related Author",
+      publisher: "Related Publisher",
+      publicationYear: "2024",
+      isbn13: "9791190000005",
+      coverURL: "https://image.example/related.jpg",
+      detailURL: "https://book.example/related"
+    }]
+  });
+
+  assert.equal(response.headers.get("cache-control"), "public, max-age=10800");
+  assert.equal(fetchCalls.length, 2);
+  assert.equal(fetchCalls[0].pathname, "/api/ItemLookUp.aspx");
+  assert.equal(fetchCalls[0].searchParams.get("ItemIdType"), "ISBN13");
+  assert.equal(fetchCalls[0].searchParams.get("ItemId"), "9791190000004");
+  assert.equal(fetchCalls[0].searchParams.has("unknown"), false);
+  assert.equal(fetchCalls[1].pathname, "/api/recommandList");
+  assert.equal(fetchCalls[1].searchParams.get("isbn13"), "9791190000004");
+  assert.equal(fetchCalls[1].searchParams.get("type"), "reader");
+  assert.equal(fetchCalls[1].searchParams.get("format"), "json");
+  assert.equal(fetchCalls[1].searchParams.has("unknown"), false);
+
+  assert.equal(cache.matches.length, 1);
+  assert.equal(cache.matches[0].url, "https://commendo.example/books/detail?version=8&isbn=9791190000004");
+  assert.equal(cache.puts.length, 1);
+  assert.equal(cache.puts[0].request.url, cache.matches[0].url);
+});
+
 test("GET /books/search rejects invalid query parameters before side effects", async () => {
   const longQuery = "a".repeat(51);
   const cases = [
@@ -359,6 +577,16 @@ function installMockFetch(payload: unknown): URL[] {
     const url = new URL(input instanceof Request ? input.url : String(input));
     calls.push(url);
     return Response.json(payload);
+  };
+  return calls;
+}
+
+function installMockFetchByPath(payloads: Record<string, unknown>): URL[] {
+  const calls: URL[] = [];
+  globalThis.fetch = async (input: RequestInfo | URL) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    calls.push(url);
+    return Response.json(payloads[url.pathname] ?? {});
   };
   return calls;
 }
