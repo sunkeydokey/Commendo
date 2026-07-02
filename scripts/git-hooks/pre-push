@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${COMMENDO_SKIP_PRE_PUSH:-}" == "1" ]]; then
+  echo "COMMENDO_SKIP_PRE_PUSH=1 set; skipping Commendo pre-push checks."
+  exit 0
+fi
+
+remote_name="${1:-origin}"
+zero_oid="0000000000000000000000000000000000000000"
+empty_tree="4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+changed_files="$(mktemp)"
+has_push_input="false"
+
+cleanup() {
+  rm -f "$changed_files"
+}
+trap cleanup EXIT
+
+append_changed_files() {
+  local local_oid="$1"
+  local remote_ref="$2"
+  local remote_oid="$3"
+  local base=""
+  local branch=""
+
+  if [[ "$local_oid" == "$zero_oid" ]]; then
+    return
+  fi
+
+  if [[ "$remote_oid" != "$zero_oid" ]]; then
+    git diff --name-only "$remote_oid..$local_oid" >> "$changed_files"
+    return
+  fi
+
+  branch="${remote_ref#refs/heads/}"
+  if git rev-parse --verify --quiet "$remote_name/$branch^{commit}" >/dev/null; then
+    base="$(git merge-base "$local_oid" "$remote_name/$branch")"
+  elif git rev-parse --verify --quiet "origin/main^{commit}" >/dev/null; then
+    base="$(git merge-base "$local_oid" "origin/main")"
+  elif git rev-parse --verify --quiet "main^{commit}" >/dev/null; then
+    base="$(git merge-base "$local_oid" "main")"
+  fi
+
+  if [[ -n "$base" ]]; then
+    git diff --name-only "$base..$local_oid" >> "$changed_files"
+  else
+    git diff --name-only "$empty_tree" "$local_oid" >> "$changed_files"
+  fi
+}
+
+while read -r local_ref local_oid remote_ref remote_oid; do
+  has_push_input="true"
+  append_changed_files "$local_oid" "$remote_ref" "$remote_oid"
+done
+
+if [[ "$has_push_input" == "false" && ! -s "$changed_files" ]]; then
+  if git rev-parse --verify --quiet "@{upstream}^{commit}" >/dev/null; then
+    base="$(git merge-base HEAD "@{upstream}")"
+    git diff --name-only "$base..HEAD" >> "$changed_files"
+  elif git rev-parse --verify --quiet "origin/main^{commit}" >/dev/null; then
+    base="$(git merge-base HEAD "origin/main")"
+    git diff --name-only "$base..HEAD" >> "$changed_files"
+  fi
+fi
+
+worker_changed="false"
+ios_changed="false"
+
+while IFS= read -r path; do
+  case "$path" in
+    worker/*|.github/workflows/worker-ci.yml|scripts/git-hooks/*)
+      worker_changed="true"
+      ;;
+  esac
+
+  case "$path" in
+    Commendo/*|CommendoTests/*|CommendoUITests/*|Commendo.xcodeproj/*|Config/*|.github/workflows/ios-ci.yml|scripts/git-hooks/*)
+      ios_changed="true"
+      ;;
+  esac
+done < <(sort -u "$changed_files")
+
+if [[ "$worker_changed" == "false" && "$ios_changed" == "false" ]]; then
+  echo "No Worker or iOS changes detected; skipping Commendo pre-push checks."
+  exit 0
+fi
+
+if [[ "$worker_changed" == "true" ]]; then
+  echo "Worker changes detected; running npm test."
+  (cd worker && npm test)
+fi
+
+if [[ "$ios_changed" == "true" ]]; then
+  echo "iOS changes detected; running xcodebuild build and unit tests."
+  xcodebuild build \
+    -quiet \
+    -project Commendo.xcodeproj \
+    -scheme Commendo \
+    -destination "generic/platform=iOS Simulator" \
+    -derivedDataPath .deriveddata-prepush
+
+  destination="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ { print "platform=iOS Simulator,id="$2; exit }')"
+  if [[ -z "$destination" ]]; then
+    echo "No available iPhone simulator found for xcodebuild test."
+    exit 1
+  fi
+
+  xcodebuild build-for-testing \
+    -quiet \
+    -project Commendo.xcodeproj \
+    -scheme Commendo \
+    -destination "$destination" \
+    -derivedDataPath .deriveddata-prepush \
+    -parallel-testing-enabled NO \
+    -skip-testing:CommendoUITests \
+    -only-testing:CommendoTests
+
+  xcodebuild test-without-building \
+    -quiet \
+    -project Commendo.xcodeproj \
+    -scheme Commendo \
+    -destination "$destination" \
+    -derivedDataPath .deriveddata-prepush \
+    -parallel-testing-enabled NO \
+    -skip-testing:CommendoUITests \
+    -only-testing:CommendoTests
+fi

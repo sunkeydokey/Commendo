@@ -1,0 +1,74 @@
+name: iOS CI
+
+on:
+  pull_request:
+    paths:
+      - "Commendo/**"
+      - "CommendoTests/**"
+      - "CommendoUITests/**"
+      - "Commendo.xcodeproj/**"
+      - "Config/**"
+      - ".github/workflows/ios-ci.yml"
+  push:
+    paths:
+      - "Commendo/**"
+      - "CommendoTests/**"
+      - "CommendoUITests/**"
+      - "Commendo.xcodeproj/**"
+      - "Config/**"
+      - ".github/workflows/ios-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and Test iOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Select test simulator
+        id: simulator
+        run: |
+          destination="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ { print "platform=iOS Simulator,id="$2; exit }')"
+          if [ -z "$destination" ]; then
+            echo "No available iPhone simulator found."
+            exit 1
+          fi
+          echo "destination=$destination" >> "$GITHUB_OUTPUT"
+
+      - name: Build app
+        run: |
+          xcodebuild build \
+            -quiet \
+            -project Commendo.xcodeproj \
+            -scheme Commendo \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath .deriveddata-ci
+
+      - name: Build tests
+        run: |
+          xcodebuild build-for-testing \
+            -quiet \
+            -project Commendo.xcodeproj \
+            -scheme Commendo \
+            -destination "${{ steps.simulator.outputs.destination }}" \
+            -derivedDataPath .deriveddata-ci \
+            -parallel-testing-enabled NO \
+            -skip-testing:CommendoUITests \
+            -only-testing:CommendoTests
+
+      - name: Run unit tests
+        run: |
+          xcodebuild test-without-building \
+            -quiet \
+            -project Commendo.xcodeproj \
+            -scheme Commendo \
+            -destination "${{ steps.simulator.outputs.destination }}" \
+            -derivedDataPath .deriveddata-ci \
+            -parallel-testing-enabled NO \
+            -skip-testing:CommendoUITests \
+            -only-testing:CommendoTests
